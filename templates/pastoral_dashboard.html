@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>목양 플래너 — {{ tenant.church_name }}</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Segoe UI',sans-serif;background:#0f172a;color:#e2e8f0;min-height:100vh}
+header{background:#1e293b;border-bottom:1px solid #334155;padding:12px 24px;display:flex;align-items:center;justify-content:space-between}
+.logo{font-size:1rem;font-weight:700;color:#c7d2fe}
+.nav-links{display:flex;gap:16px;align-items:center}
+.nav-links a{color:#94a3b8;font-size:.85rem;text-decoration:none}
+.nav-links a:hover,.nav-links a.active{color:#e2e8f0}
+.main{max-width:1100px;margin:0 auto;padding:28px 20px 60px}
+.page-title{font-size:1.3rem;font-weight:700;margin-bottom:24px;color:#f1f5f9}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:20px}
+@media(max-width:700px){.grid{grid-template-columns:1fr}}
+.card{background:#1e293b;border-radius:12px;padding:24px;border:1px solid #334155}
+.card h2{font-size:.95rem;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:.05em;margin-bottom:16px}
+.alert-list{display:flex;flex-direction:column;gap:8px}
+.alert-item{display:flex;align-items:center;justify-content:space-between;padding:10px 14px;background:#1a1a2e;border-radius:8px;border-left:3px solid #f59e0b}
+.alert-item .name{font-size:.9rem;font-weight:600}
+.alert-item .days{font-size:.78rem;color:#f59e0b}
+.alert-item a{font-size:.78rem;color:#818cf8;text-decoration:none}
+.member-list{display:flex;flex-direction:column;gap:6px;max-height:320px;overflow-y:auto}
+.member-item{display:flex;align-items:center;justify-content:space-between;padding:10px 14px;background:#0f172a;border-radius:8px;cursor:pointer;transition:.15s}
+.member-item:hover{background:#1e293b}
+.member-item .mname{font-size:.9rem;font-weight:600}
+.member-item .meta{font-size:.75rem;color:#64748b}
+.member-item .status{font-size:.72rem;padding:2px 8px;border-radius:10px}
+.status-active{background:#064e3b;color:#6ee7b7}
+.status-inactive{background:#374151;color:#9ca3af}
+.btn{padding:8px 16px;border-radius:8px;border:none;cursor:pointer;font-size:.85rem;font-weight:600;text-decoration:none;display:inline-block}
+.btn-primary{background:#6366f1;color:#fff}
+.btn-primary:hover{background:#4f46e5}
+.btn-sm{padding:5px 12px;font-size:.78rem}
+.btn-ghost{background:transparent;border:1px solid #334155;color:#94a3b8}
+.btn-ghost:hover{border-color:#6366f1;color:#6366f1}
+.search-bar{display:flex;gap:8px;margin-bottom:16px}
+.search-bar input{flex:1;padding:9px 14px;background:#0f172a;border:1.5px solid #334155;border-radius:8px;color:#f1f5f9;font-size:.88rem;outline:none}
+.search-bar input:focus{border-color:#6366f1}
+.section-full{grid-column:1/-1}
+.stat-row{display:flex;gap:12px;margin-bottom:20px;flex-wrap:wrap}
+.stat{background:#1e293b;border-radius:10px;padding:14px 20px;border:1px solid #334155;min-width:110px;text-align:center}
+.stat .val{font-size:1.6rem;font-weight:700;color:#c7d2fe}
+.stat .lbl{font-size:.75rem;color:#64748b;margin-top:2px}
+.empty{text-align:center;padding:32px;color:#475569;font-size:.88rem}
+.lock-overlay{position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:100;display:flex;align-items:center;justify-content:center}
+.lock-card{background:#1e293b;border-radius:16px;padding:36px;width:380px;max-width:90vw;text-align:center}
+.lock-card h2{font-size:1.1rem;margin-bottom:8px;color:#f1f5f9}
+.lock-card p{font-size:.85rem;color:#64748b;margin-bottom:20px}
+.lock-card input{width:100%;padding:11px 14px;background:#0f172a;border:1.5px solid #334155;border-radius:8px;color:#f1f5f9;font-size:.95rem;outline:none;margin-bottom:12px}
+.lock-card input:focus{border-color:#6366f1}
+.lock-card .err{color:#f87171;font-size:.82rem;margin-top:8px;display:none}
+.recovery-hint{font-size:.78rem;color:#475569;margin-top:12px}
+.recovery-hint a{color:#818cf8;cursor:pointer}
+</style>
+</head>
+<body>
+<header>
+  <div class="logo">✝ {{ tenant.church_name }} — 목양 플래너</div>
+  <div class="nav-links">
+    <a href="/pastoral/dashboard" class="active">대시보드</a>
+    <a href="/pastoral/members">성도 관리</a>
+    <a href="/pastoral/donations">기부금</a>
+    <a href="/admin">어드민</a>
+    <a href="/logout">로그아웃</a>
+  </div>
+</header>
+
+<div class="main">
+  <div class="stat-row">
+    <div class="stat"><div class="val">{{ stats.total }}</div><div class="lbl">전체 성도</div></div>
+    <div class="stat"><div class="val">{{ stats.active }}</div><div class="lbl">활성</div></div>
+    <div class="stat"><div class="val">{{ stats.alerts }}</div><div class="lbl">돌봄 필요</div></div>
+    <div class="stat"><div class="val">{{ stats.counseling }}</div><div class="lbl">상담 일지</div></div>
+  </div>
+
+  <div class="grid">
+    <div class="card">
+      <h2>🔔 돌봄 알림 — 3개월 이상 미접촉</h2>
+      {% if alerts %}
+      <div class="alert-list">
+        {% for a in alerts %}
+        <div class="alert-item">
+          <div>
+            <div class="name">{{ a.name }}</div>
+            <div class="days">{{ a.days }}일 미접촉 · {{ a.cell_group or '셀 미지정' }}</div>
+          </div>
+          <a href="/pastoral/members/{{ a.id }}">보기 →</a>
+        </div>
+        {% endfor %}
+      </div>
+      {% else %}
+      <div class="empty">3개월 이상 미접촉 성도가 없습니다 🙏</div>
+      {% endif %}
+    </div>
+
+    <div class="card">
+      <h2>👥 성도 목록</h2>
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+        <input id="memberSearch" placeholder="이름 검색..." onkeyup="filterMembers()" style="flex:1;padding:7px 12px;background:#0f172a;border:1.5px solid #334155;border-radius:8px;color:#f1f5f9;font-size:.85rem;outline:none;margin-right:8px">
+        <a href="/pastoral/members/new" class="btn btn-primary btn-sm">+ 등록</a>
+      </div>
+      {% if members %}
+      <div class="member-list" id="memberList">
+        {% for m in members %}
+        <div class="member-item" onclick="location.href='/pastoral/members/{{ m.id }}'" data-name="{{ m.name }}">
+          <div>
+            <div class="mname">{{ m.name }}</div>
+            <div class="meta">{{ m.cell_group or '셀 미지정' }}{% if m.phone %} · {{ m.phone }}{% endif %}</div>
+          </div>
+          <span class="status {% if m.status == 'active' %}status-active{% else %}status-inactive{% endif %}">{{ '활성' if m.status == 'active' else '비활성' }}</span>
+        </div>
+        {% endfor %}
+      </div>
+      {% else %}
+      <div class="empty">등록된 성도가 없습니다.<br><a href="/pastoral/members/new" style="color:#818cf8">+ 첫 번째 성도 등록</a></div>
+      {% endif %}
+    </div>
+  </div>
+</div>
+
+<!-- E2EE 잠금 화면 -->
+<div class="lock-overlay" id="lockOverlay">
+  <div class="lock-card">
+    <h2>🔐 목양 플래너</h2>
+    <p id="lockDesc">상담 일지는 암호화되어 있습니다.<br>마스터 비밀번호를 입력해 잠금을 해제하세요.</p>
+    <input type="password" id="masterPw" placeholder="마스터 비밀번호" onkeydown="if(event.key==='Enter')unlockVault()">
+    <button class="btn btn-primary" style="width:100%" onclick="unlockVault()">잠금 해제</button>
+    <div class="err" id="lockErr">비밀번호가 올바르지 않거나 복호화에 실패했습니다.</div>
+    <div class="recovery-hint" id="firstSetup" style="display:none">
+      ⚠️ 처음 설정 시 잊어버리면 복구 불가합니다. 복구 코드를 반드시 저장하세요.
+    </div>
+  </div>
+</div>
+
+<script>
+const SALT_HEX = "{{ e2ee_salt }}";
+const IS_FIRST_SETUP = {{ 'true' if is_first_setup else 'false' }};
+
+if (IS_FIRST_SETUP) {
+  document.getElementById('lockDesc').textContent = '처음 접근합니다. 상담 일지용 마스터 비밀번호를 설정하세요.';
+  document.getElementById('firstSetup').style.display = 'block';
+}
+
+function filterMembers() {
+  const q = document.getElementById('memberSearch').value.toLowerCase();
+  document.querySelectorAll('#memberList .member-item').forEach(el => {
+    el.style.display = el.dataset.name.toLowerCase().includes(q) ? '' : 'none';
+  });
+}
+
+async function unlockVault() {
+  const pw = document.getElementById('masterPw').value;
+  if (!pw) return;
+  try {
+    const key = await deriveKey(pw, SALT_HEX);
+    // 검증: 세션에 키 저장
+    const exported = await crypto.subtle.exportKey('raw', key);
+    sessionStorage.setItem('e2ee_key', btoa(String.fromCharCode(...new Uint8Array(exported))));
+    document.getElementById('lockOverlay').style.display = 'none';
+    if (IS_FIRST_SETUP) await generateRecoveryCode(key);
+  } catch(e) {
+    document.getElementById('lockErr').style.display = 'block';
+  }
+}
+
+async function deriveKey(password, saltHex) {
+  const salt = hexToBytes(saltHex);
+  const km = await crypto.subtle.importKey('raw', new TextEncoder().encode(password), 'PBKDF2', false, ['deriveKey']);
+  return crypto.subtle.deriveKey(
+    {name:'PBKDF2', salt, iterations:100000, hash:'SHA-256'},
+    km, {name:'AES-GCM', length:256}, true, ['encrypt','decrypt']
+  );
+}
+
+async function generateRecoveryCode(key) {
+  const raw = await crypto.subtle.exportKey('raw', key);
+  const b64 = btoa(String.fromCharCode(...new Uint8Array(raw)));
+  const msg = `목양 플래너 복구 코드\n\n이 코드를 안전한 곳에 보관하세요.\n분실 시 상담 일지를 복구할 수 없습니다.\n\n복구 코드:\n${b64}\n\n생성일: ${new Date().toLocaleString('ko-KR')}`;
+  const blob = new Blob([msg], {type:'text/plain'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = '목양플래너_복구코드.txt';
+  a.click();
+  alert('복구 코드가 다운로드되었습니다. 반드시 안전한 곳에 보관하세요.');
+}
+
+function hexToBytes(hex) {
+  const bytes = new Uint8Array(hex.length / 2);
+  for (let i = 0; i < hex.length; i += 2)
+    bytes[i/2] = parseInt(hex.substr(i, 2), 16);
+  return bytes;
+}
+
+// 세션 키 있으면 바로 해제
+const stored = sessionStorage.getItem('e2ee_key');
+if (stored && !IS_FIRST_SETUP) {
+  document.getElementById('lockOverlay').style.display = 'none';
+}
+</script>
+</body>
+</html>

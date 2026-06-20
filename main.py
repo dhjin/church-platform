@@ -1103,7 +1103,9 @@ async def _login_post(request: Request, lang: str, username: str, password: str)
         return templates.TemplateResponse("login.html", {"request": request, "error": t["login_error"], "t": t, "lp": lp})
 
     token = secrets.token_urlsafe(32)
-    sessions[token] = {"id": row[0], "username": row[1], "role": row[3], "tenant_id": tenant_id}
+    tenant_info = request.state.tenant or {}
+    sessions[token] = {"id": row[0], "username": row[1], "role": row[3], "tenant_id": tenant_id,
+                       "church_name": tenant_info.get("church_name", "")}
     cur.close()
     conn.close()
     response = RedirectResponse(url="/admin" if row[3] in MANAGER_ROLES else f"{lp}/", status_code=303)
@@ -2017,6 +2019,293 @@ async def delete_offering_link(link_id: int, user: dict = Depends(require_admin)
     cur.close()
     conn.close()
     return RedirectResponse(url="/admin#offering", status_code=303)
+
+
+# ─── Pastoral Planner (owner only) ───────────────────────────────────────────
+
+import json as _json
+
+def _get_or_create_e2ee_salt(tenant_id: int) -> tuple[str, bool]:
+    conn = get_conn()
+    cur = conn.cursor()
+    cur.execute("SELECT e2ee_salt FROM tenants WHERE id=%s", (tenant_id,))
+    row = cur.fetchone()
+    if row and row[0]:
+        cur.close(); conn.close()
+        return row[0], False
+    salt = secrets.token_hex(32)
+    cur.execute("UPDATE tenants SET e2ee_salt=%s WHERE id=%s", (salt, tenant_id))
+    conn.commit()
+    cur.close(); conn.close()
+    return salt, True
+
+
+@app.get("/pastoral/dashboard", response_class=HTMLResponse)
+async def pastoral_dashboard(request: Request, user: dict = Depends(require_owner)):
+    tenant_id = user["tenant_id"]
+    salt, is_first = _get_or_create_e2ee_salt(tenant_id)
+    conn = get_conn()
+    cur = conn.cursor()
+    cur.execute(
+        "SELECT id, name, cell_group, phone, status, last_contact_date FROM congregation_members WHERE tenant_id=%s ORDER BY name",
+        (tenant_id,),
+    )
+    members = [{"id": r[0], "name": r[1], "cell_group": r[2], "phone": r[3], "status": r[4], "last_contact_date": r[5]} for r in cur.fetchall()]
+
+    from datetime import date
+    today = date.today()
+    alerts = []
+    for m in members:
+        if m["status"] != "active": continue
+        lcd = m["last_contact_date"]
+        days = (today - lcd).days if lcd else 9999
+        if days >= 90:
+            alerts.append({**m, "days": days})
+    alerts.sort(key=lambda x: x["days"], reverse=True)
+
+    cur.execute("SELECT COUNT(*) FROM congregation_members WHERE tenant_id=%s", (tenant_id,))
+    total = cur.fetchone()[0]
+    cur.execute("SELECT COUNT(*) FROM congregation_members WHERE tenant_id=%s AND status='active'", (tenant_id,))
+    active = cur.fetchone()[0]
+    cur.execute("SELECT COUNT(*) FROM counseling_logs WHERE tenant_id=%s", (tenant_id,))
+    counsel_count = cur.fetchone()[0]
+    cur.close(); conn.close()
+
+    return templates.TemplateResponse("pastoral_dashboard.html", {
+        "request": request,
+        "tenant": {"church_name": user.get("church_name", "")},
+        "members": members, "alerts": alerts, "e2ee_salt": salt,
+        "is_first_setup": is_first,
+        "stats": {"total": total, "active": active, "alerts": len(alerts), "counseling": counsel_count},
+    })
+
+
+@app.get("/pastoral/members", response_class=HTMLResponse)
+async def pastoral_members_redirect(user: dict = Depends(require_owner)):
+    return RedirectResponse("/pastoral/dashboard", status_code=302)
+
+
+@app.get("/pastoral/members/new", response_class=HTMLResponse)
+async def pastoral_member_new(request: Request, user: dict = Depends(require_owner)):
+    return templates.TemplateResponse("pastoral_member_new.html", {"request": request})
+
+
+@app.post("/pastoral/members/create")
+async def pastoral_member_create(
+    request: Request,
+    name: str = Form(...), cell_group: str = Form(""), phone: str = Form(""),
+    email: str = Form(""), address: str = Form(""), birth_date: str = Form(""),
+    join_date: str = Form(""), baptism_date: str = Form(""), status: str = Form("active"),
+    notes: str = Form(""), user: dict = Depends(require_owner),
+):
+    tenant_id = user["tenant_id"]
+    def d(v): return v if v else None
+    conn = get_conn()
+    cur = conn.cursor()
+    cur.execute(
+        "INSERT INTO congregation_members (tenant_id, name, cell_group, phone, email, address, birth_date, join_date, baptism_date, status, notes) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s) RETURNING id",
+        (tenant_id, name, cell_group, phone, email, address, d(birth_date), d(join_date), d(baptism_date), status, notes),
+    )
+    mid = cur.fetchone()[0]
+    conn.commit(); cur.close(); conn.close()
+    return RedirectResponse(f"/pastoral/members/{mid}", status_code=303)
+
+
+@app.get("/pastoral/members/{member_id}", response_class=HTMLResponse)
+async def pastoral_member_detail(member_id: int, request: Request, user: dict = Depends(require_owner)):
+    tenant_id = user["tenant_id"]
+    salt, _ = _get_or_create_e2ee_salt(tenant_id)
+    conn = get_conn()
+    cur = conn.cursor()
+    cur.execute(
+        "SELECT id,name,cell_group,phone,email,address,birth_date,join_date,baptism_date,status,notes,last_contact_date FROM congregation_members WHERE id=%s AND tenant_id=%s",
+        (member_id, tenant_id),
+    )
+    row = cur.fetchone()
+    if not row:
+        cur.close(); conn.close()
+        raise HTTPException(404)
+    member = {"id": row[0], "name": row[1], "cell_group": row[2], "phone": row[3], "email": row[4],
+              "address": row[5], "birth_date": str(row[6]) if row[6] else "", "join_date": str(row[7]) if row[7] else "",
+              "baptism_date": str(row[8]) if row[8] else "", "status": row[9], "notes": row[10],
+              "last_contact_date": str(row[11]) if row[11] else ""}
+    cur.execute(
+        "SELECT id, encrypted_content, iv, created_at FROM counseling_logs WHERE member_id=%s AND tenant_id=%s ORDER BY created_at DESC",
+        (member_id, tenant_id),
+    )
+    logs = [{"id": r[0], "encrypted_content": r[1], "iv": r[2], "created_at": str(r[3])[:16]} for r in cur.fetchall()]
+    cur.close(); conn.close()
+    from datetime import date
+    return templates.TemplateResponse("pastoral_member.html", {
+        "request": request, "member": member, "e2ee_salt": salt,
+        "logs_json": _json.dumps(logs), "today": str(date.today()),
+    })
+
+
+@app.post("/pastoral/members/update/{member_id}")
+async def pastoral_member_update(
+    member_id: int,
+    name: str = Form(...), cell_group: str = Form(""), phone: str = Form(""),
+    email: str = Form(""), address: str = Form(""), birth_date: str = Form(""),
+    join_date: str = Form(""), baptism_date: str = Form(""), status: str = Form("active"),
+    notes: str = Form(""), user: dict = Depends(require_owner),
+):
+    tenant_id = user["tenant_id"]
+    def d(v): return v if v else None
+    conn = get_conn()
+    cur = conn.cursor()
+    cur.execute(
+        "UPDATE congregation_members SET name=%s,cell_group=%s,phone=%s,email=%s,address=%s,birth_date=%s,join_date=%s,baptism_date=%s,status=%s,notes=%s WHERE id=%s AND tenant_id=%s",
+        (name, cell_group, phone, email, address, d(birth_date), d(join_date), d(baptism_date), status, notes, member_id, tenant_id),
+    )
+    conn.commit(); cur.close(); conn.close()
+    return RedirectResponse(f"/pastoral/members/{member_id}", status_code=303)
+
+
+@app.post("/pastoral/members/delete/{member_id}")
+async def pastoral_member_delete(member_id: int, user: dict = Depends(require_owner)):
+    tenant_id = user["tenant_id"]
+    conn = get_conn()
+    cur = conn.cursor()
+    cur.execute("DELETE FROM counseling_logs WHERE member_id=%s AND tenant_id=%s", (member_id, tenant_id))
+    cur.execute("DELETE FROM congregation_members WHERE id=%s AND tenant_id=%s", (member_id, tenant_id))
+    conn.commit(); cur.close(); conn.close()
+    return RedirectResponse("/pastoral/dashboard", status_code=303)
+
+
+# ─── Pastoral: Counseling logs (E2EE) ────────────────────────────────────────
+
+class CounselCreateRequest(BaseModel):
+    member_id: int
+    iv: str
+    encrypted_content: str
+    counsel_date: Optional[str] = None
+
+
+@app.post("/api/pastoral/counsel")
+async def create_counsel(data: CounselCreateRequest, user: dict = Depends(require_owner)):
+    tenant_id = user["tenant_id"]
+    from datetime import date
+    conn = get_conn()
+    cur = conn.cursor()
+    cur.execute(
+        "INSERT INTO counseling_logs (tenant_id, member_id, encrypted_content, iv, created_at) VALUES (%s,%s,%s,%s,%s) RETURNING id, created_at",
+        (tenant_id, data.member_id, data.encrypted_content, data.iv, data.counsel_date or date.today()),
+    )
+    row = cur.fetchone()
+    # 최근 접촉일 업데이트
+    cur.execute(
+        "UPDATE congregation_members SET last_contact_date=%s WHERE id=%s AND tenant_id=%s",
+        (data.counsel_date or date.today(), data.member_id, tenant_id),
+    )
+    conn.commit(); cur.close(); conn.close()
+    return {"id": row[0], "encrypted_content": data.encrypted_content, "iv": data.iv, "created_at": str(row[1])[:16]}
+
+
+@app.delete("/api/pastoral/counsel/{log_id}")
+async def delete_counsel(log_id: int, user: dict = Depends(require_owner)):
+    tenant_id = user["tenant_id"]
+    conn = get_conn()
+    cur = conn.cursor()
+    cur.execute("DELETE FROM counseling_logs WHERE id=%s AND tenant_id=%s", (log_id, tenant_id))
+    conn.commit(); cur.close(); conn.close()
+    return {"ok": True}
+
+
+@app.post("/api/pastoral/members/{member_id}/contact")
+async def mark_contact(member_id: int, user: dict = Depends(require_owner)):
+    tenant_id = user["tenant_id"]
+    from datetime import date
+    conn = get_conn()
+    cur = conn.cursor()
+    cur.execute(
+        "UPDATE congregation_members SET last_contact_date=%s WHERE id=%s AND tenant_id=%s",
+        (date.today(), member_id, tenant_id),
+    )
+    conn.commit(); cur.close(); conn.close()
+    return {"ok": True, "date": str(date.today())}
+
+
+# ─── Pastoral: Donations ─────────────────────────────────────────────────────
+
+@app.get("/pastoral/donations", response_class=HTMLResponse)
+async def pastoral_donations(request: Request, year: int = 0, user: dict = Depends(require_owner)):
+    tenant_id = user["tenant_id"]
+    from datetime import date
+    current_year = year or date.today().year
+    conn = get_conn()
+    cur = conn.cursor()
+    cur.execute(
+        "SELECT id, member_name, amount, receipt_number, issued_at FROM donation_receipts WHERE tenant_id=%s AND year=%s ORDER BY issued_at DESC",
+        (tenant_id, current_year),
+    )
+    receipts = [{"id": r[0], "member_name": r[1], "amount": r[2], "receipt_number": r[3], "issued_at": r[4]} for r in cur.fetchall()]
+    total_amount = sum(r["amount"] for r in receipts)
+    cur.execute("SELECT DISTINCT year FROM donation_receipts WHERE tenant_id=%s ORDER BY year DESC", (tenant_id,))
+    years_rows = [r[0] for r in cur.fetchall()]
+    if current_year not in years_rows:
+        years_rows = [current_year] + years_rows
+    cur.execute("SELECT id, name FROM congregation_members WHERE tenant_id=%s ORDER BY name", (tenant_id,))
+    members = [{"id": r[0], "name": r[1]} for r in cur.fetchall()]
+    cur.close(); conn.close()
+    return templates.TemplateResponse("pastoral_donations.html", {
+        "request": request, "receipts": receipts, "total_amount": total_amount,
+        "current_year": current_year, "years": years_rows, "members": members,
+    })
+
+
+@app.post("/pastoral/donations/create")
+async def pastoral_donation_create(
+    member_name: str = Form(...), amount: int = Form(...),
+    year: int = Form(...), receipt_number: str = Form(""),
+    user: dict = Depends(require_owner),
+):
+    tenant_id = user["tenant_id"]
+    conn = get_conn()
+    cur = conn.cursor()
+    cur.execute("SELECT id FROM congregation_members WHERE tenant_id=%s AND name=%s LIMIT 1", (tenant_id, member_name))
+    row = cur.fetchone()
+    member_id = row[0] if row else None
+    rnum = receipt_number or f"{year}-{secrets.token_hex(4).upper()}"
+    cur.execute(
+        "INSERT INTO donation_receipts (tenant_id, member_id, member_name, amount, year, receipt_number) VALUES (%s,%s,%s,%s,%s,%s)",
+        (tenant_id, member_id, member_name, amount, year, rnum),
+    )
+    conn.commit(); cur.close(); conn.close()
+    return RedirectResponse(f"/pastoral/donations?year={year}", status_code=303)
+
+
+@app.post("/pastoral/donations/delete/{receipt_id}")
+async def pastoral_donation_delete(receipt_id: int, user: dict = Depends(require_owner)):
+    tenant_id = user["tenant_id"]
+    conn = get_conn()
+    cur = conn.cursor()
+    cur.execute("DELETE FROM donation_receipts WHERE id=%s AND tenant_id=%s", (receipt_id, tenant_id))
+    conn.commit(); cur.close(); conn.close()
+    return RedirectResponse("/pastoral/donations", status_code=303)
+
+
+@app.get("/pastoral/donations/export/{year}")
+async def pastoral_donation_export(year: int, user: dict = Depends(require_owner)):
+    tenant_id = user["tenant_id"]
+    conn = get_conn()
+    cur = conn.cursor()
+    cur.execute(
+        "SELECT member_name, amount, receipt_number, issued_at FROM donation_receipts WHERE tenant_id=%s AND year=%s ORDER BY issued_at",
+        (tenant_id, year),
+    )
+    rows = cur.fetchall()
+    cur.close(); conn.close()
+    lines = ["이름,금액(원),영수증번호,발행일"]
+    for r in rows:
+        lines.append(f"{r[0]},{r[1]},{r[2] or ''},{str(r[3])[:10]}")
+    csv_content = "\n".join(lines)
+    from fastapi.responses import Response
+    return Response(
+        content="﻿" + csv_content,
+        media_type="text/csv; charset=utf-8",
+        headers={"Content-Disposition": f"attachment; filename=donation_{year}.csv"},
+    )
 
 
 # ─── Platform Lounge ─────────────────────────────────────────────────────────

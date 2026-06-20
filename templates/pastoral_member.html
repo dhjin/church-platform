@@ -1,0 +1,290 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>{{ member.name }} — 목양 플래너</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Segoe UI',sans-serif;background:#0f172a;color:#e2e8f0;min-height:100vh}
+header{background:#1e293b;border-bottom:1px solid #334155;padding:12px 24px;display:flex;align-items:center;gap:16px}
+.logo{font-size:1rem;font-weight:700;color:#c7d2fe}
+header a{color:#94a3b8;font-size:.85rem;text-decoration:none}
+.main{max-width:860px;margin:0 auto;padding:28px 20px 60px}
+.profile-card{background:#1e293b;border-radius:12px;padding:24px;border:1px solid #334155;margin-bottom:20px}
+.profile-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:20px}
+.profile-name{font-size:1.4rem;font-weight:700}
+.profile-status{font-size:.78rem;padding:3px 10px;border-radius:10px}
+.status-active{background:#064e3b;color:#6ee7b7}
+.status-inactive{background:#374151;color:#9ca3af}
+.info-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+@media(max-width:560px){.info-grid{grid-template-columns:1fr}}
+.info-item label{display:block;font-size:.75rem;color:#64748b;margin-bottom:3px}
+.info-item span{font-size:.9rem}
+.section-title{font-size:.9rem;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:.05em;margin:28px 0 14px;border-left:3px solid #6366f1;padding-left:10px}
+.counsel-form{background:#1e293b;border-radius:12px;padding:20px;border:1px solid #334155;margin-bottom:16px}
+.counsel-form textarea{width:100%;background:#0f172a;border:1.5px solid #334155;border-radius:8px;color:#f1f5f9;padding:12px;font-size:.9rem;resize:vertical;min-height:100px;outline:none;font-family:inherit}
+.counsel-form textarea:focus{border-color:#6366f1}
+.counsel-form .form-row{display:flex;gap:8px;margin-top:10px;align-items:center}
+.counsel-form input[type=date]{background:#0f172a;border:1.5px solid #334155;border-radius:8px;color:#f1f5f9;padding:8px 12px;font-size:.85rem;outline:none}
+.btn{padding:8px 16px;border-radius:8px;border:none;cursor:pointer;font-size:.85rem;font-weight:600;text-decoration:none;display:inline-block}
+.btn-primary{background:#6366f1;color:#fff}
+.btn-primary:hover{background:#4f46e5}
+.btn-danger{background:#7f1d1d;color:#fca5a5}
+.btn-sm{padding:5px 10px;font-size:.78rem}
+.btn-ghost{background:transparent;border:1px solid #334155;color:#94a3b8;font-size:.82rem}
+.timeline{display:flex;flex-direction:column;gap:12px}
+.log-item{background:#1e293b;border-radius:10px;padding:16px 20px;border:1px solid #334155;position:relative}
+.log-item .log-date{font-size:.78rem;color:#64748b;margin-bottom:8px}
+.log-item .log-content{font-size:.9rem;line-height:1.7;white-space:pre-wrap;color:#cbd5e1}
+.log-item .log-actions{margin-top:10px;display:flex;gap:8px}
+.log-item.decrypting .log-content{color:#475569;font-style:italic}
+.contact-btn{margin-top:16px}
+.edit-form{display:none;background:#0f172a;border-radius:12px;padding:20px;margin-top:16px;border:1px solid #334155}
+.edit-form input,.edit-form select,.edit-form textarea{width:100%;padding:9px 12px;background:#1e293b;border:1.5px solid #334155;border-radius:8px;color:#f1f5f9;font-size:.88rem;outline:none;margin-bottom:10px}
+.edit-form input:focus,.edit-form select:focus,.edit-form textarea:focus{border-color:#6366f1}
+.edit-form label{display:block;font-size:.78rem;color:#94a3b8;margin-bottom:4px}
+.edit-form .grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.lock-overlay{position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:100;display:flex;align-items:center;justify-content:center}
+.lock-card{background:#1e293b;border-radius:16px;padding:36px;width:380px;max-width:90vw;text-align:center}
+.lock-card h2{font-size:1.1rem;margin-bottom:8px}
+.lock-card p{font-size:.85rem;color:#64748b;margin-bottom:20px}
+.lock-card input{width:100%;padding:11px 14px;background:#0f172a;border:1.5px solid #334155;border-radius:8px;color:#f1f5f9;font-size:.95rem;outline:none;margin-bottom:12px}
+.lock-card input:focus{border-color:#6366f1}
+.lock-err{color:#f87171;font-size:.82rem;margin-top:8px;display:none}
+</style>
+</head>
+<body>
+<header>
+  <div class="logo">✝</div>
+  <a href="/pastoral/dashboard">← 대시보드</a>
+  <a href="/pastoral/members">성도 목록</a>
+</header>
+
+<div class="main">
+  <div class="profile-card">
+    <div class="profile-header">
+      <div style="display:flex;align-items:center;gap:12px">
+        <div class="profile-name">{{ member.name }}</div>
+        <span class="profile-status {% if member.status == 'active' %}status-active{% else %}status-inactive{% endif %}">
+          {{ '활성' if member.status == 'active' else '비활성' }}
+        </span>
+      </div>
+      <div style="display:flex;gap:8px">
+        <button class="btn btn-ghost btn-sm" onclick="toggleEdit()">정보 수정</button>
+        <form method="POST" action="/pastoral/members/delete/{{ member.id }}" onsubmit="return confirm('{{ member.name }} 성도를 삭제할까요?')" style="display:inline">
+          <button type="submit" class="btn btn-danger btn-sm">삭제</button>
+        </form>
+      </div>
+    </div>
+    <div class="info-grid">
+      <div class="info-item"><label>셀/목장</label><span>{{ member.cell_group or '—' }}</span></div>
+      <div class="info-item"><label>연락처</label><span>{{ member.phone or '—' }}</span></div>
+      <div class="info-item"><label>이메일</label><span>{{ member.email or '—' }}</span></div>
+      <div class="info-item"><label>생년월일</label><span>{{ member.birth_date or '—' }}</span></div>
+      <div class="info-item"><label>등록일</label><span>{{ member.join_date or '—' }}</span></div>
+      <div class="info-item"><label>세례일</label><span>{{ member.baptism_date or '—' }}</span></div>
+      <div class="info-item"><label>최근 접촉일</label><span id="lastContact">{{ member.last_contact_date or '—' }}</span></div>
+      <div class="info-item"><label>주소</label><span>{{ member.address or '—' }}</span></div>
+    </div>
+    {% if member.notes %}
+    <div style="margin-top:14px;padding-top:14px;border-top:1px solid #334155">
+      <label style="font-size:.75rem;color:#64748b;display:block;margin-bottom:4px">메모</label>
+      <div style="font-size:.88rem;white-space:pre-wrap;color:#94a3b8">{{ member.notes }}</div>
+    </div>
+    {% endif %}
+
+    <div class="contact-btn">
+      <button class="btn btn-ghost btn-sm" onclick="markContact()">✅ 오늘 접촉함으로 표시</button>
+    </div>
+
+    <!-- 수정 폼 -->
+    <div class="edit-form" id="editForm">
+      <form method="POST" action="/pastoral/members/update/{{ member.id }}">
+        <div class="grid2">
+          <div><label>이름</label><input name="name" value="{{ member.name }}" required></div>
+          <div><label>셀/목장</label><input name="cell_group" value="{{ member.cell_group or '' }}"></div>
+          <div><label>연락처</label><input name="phone" value="{{ member.phone or '' }}"></div>
+          <div><label>이메일</label><input name="email" value="{{ member.email or '' }}"></div>
+          <div><label>생년월일</label><input type="date" name="birth_date" value="{{ member.birth_date or '' }}"></div>
+          <div><label>등록일</label><input type="date" name="join_date" value="{{ member.join_date or '' }}"></div>
+          <div><label>세례일</label><input type="date" name="baptism_date" value="{{ member.baptism_date or '' }}"></div>
+          <div>
+            <label>상태</label>
+            <select name="status">
+              <option value="active" {% if member.status=='active' %}selected{% endif %}>활성</option>
+              <option value="inactive" {% if member.status=='inactive' %}selected{% endif %}>비활성</option>
+              <option value="moved" {% if member.status=='moved' %}selected{% endif %}>이사</option>
+            </select>
+          </div>
+        </div>
+        <label>주소</label><input name="address" value="{{ member.address or '' }}">
+        <label>메모</label><textarea name="notes" rows="3">{{ member.notes or '' }}</textarea>
+        <button type="submit" class="btn btn-primary">저장</button>
+        <button type="button" class="btn btn-ghost" onclick="toggleEdit()" style="margin-left:8px">취소</button>
+      </form>
+    </div>
+  </div>
+
+  <!-- 상담 일지 -->
+  <div class="section-title">🔐 상담 일지 (E2EE 암호화)</div>
+
+  <div class="counsel-form" id="counselForm">
+    <textarea id="counselText" placeholder="상담 내용을 입력하세요. 저장 시 암호화됩니다."></textarea>
+    <div class="form-row">
+      <input type="date" id="counselDate" value="{{ today }}">
+      <button class="btn btn-primary" onclick="saveCounsel()">암호화 저장</button>
+    </div>
+  </div>
+
+  <div class="timeline" id="timeline">
+    <div style="color:#475569;font-size:.88rem;padding:12px">복호화 중...</div>
+  </div>
+</div>
+
+<!-- E2EE 잠금 화면 -->
+<div class="lock-overlay" id="lockOverlay">
+  <div class="lock-card">
+    <h2>🔐 상담 일지 잠금</h2>
+    <p>마스터 비밀번호를 입력해 상담 일지를 복호화하세요.</p>
+    <input type="password" id="masterPw" placeholder="마스터 비밀번호" onkeydown="if(event.key==='Enter')unlock()">
+    <button class="btn btn-primary" style="width:100%" onclick="unlock()">잠금 해제</button>
+    <div class="lock-err" id="lockErr">비밀번호가 올바르지 않습니다.</div>
+  </div>
+</div>
+
+<script>
+const MEMBER_ID = {{ member.id }};
+const SALT_HEX = "{{ e2ee_salt }}";
+const ENCRYPTED_LOGS = {{ logs_json }};
+let cryptoKey = null;
+
+function hexToBytes(hex) {
+  const b = new Uint8Array(hex.length/2);
+  for(let i=0;i<hex.length;i+=2) b[i/2]=parseInt(hex.substr(i,2),16);
+  return b;
+}
+function b64ToBytes(b64) {
+  const s = atob(b64); const b = new Uint8Array(s.length);
+  for(let i=0;i<s.length;i++) b[i]=s.charCodeAt(i);
+  return b;
+}
+function bytesToB64(bytes) { return btoa(String.fromCharCode(...bytes)); }
+
+async function deriveKey(password) {
+  const salt = hexToBytes(SALT_HEX);
+  const km = await crypto.subtle.importKey('raw', new TextEncoder().encode(password), 'PBKDF2', false, ['deriveKey']);
+  return crypto.subtle.deriveKey(
+    {name:'PBKDF2', salt, iterations:100000, hash:'SHA-256'},
+    km, {name:'AES-GCM', length:256}, true, ['encrypt','decrypt']
+  );
+}
+
+async function encrypt(key, text) {
+  const iv = crypto.getRandomValues(new Uint8Array(12));
+  const ct = await crypto.subtle.encrypt({name:'AES-GCM',iv}, key, new TextEncoder().encode(text));
+  return {iv: bytesToB64(iv), ciphertext: bytesToB64(new Uint8Array(ct))};
+}
+
+async function decrypt(key, iv, ct) {
+  const pt = await crypto.subtle.decrypt({name:'AES-GCM', iv:b64ToBytes(iv)}, key, b64ToBytes(ct));
+  return new TextDecoder().decode(pt);
+}
+
+async function loadKey() {
+  const stored = sessionStorage.getItem('e2ee_key');
+  if (!stored) return null;
+  const raw = b64ToBytes(stored);
+  return crypto.subtle.importKey('raw', raw, {name:'AES-GCM'}, true, ['encrypt','decrypt']);
+}
+
+async function unlock() {
+  const pw = document.getElementById('masterPw').value;
+  if (!pw) return;
+  try {
+    const key = await deriveKey(pw);
+    // 검증: 로그 1개라도 복호화 시도
+    if (ENCRYPTED_LOGS.length > 0) {
+      await decrypt(key, ENCRYPTED_LOGS[0].iv, ENCRYPTED_LOGS[0].encrypted_content);
+    }
+    const raw = await crypto.subtle.exportKey('raw', key);
+    sessionStorage.setItem('e2ee_key', bytesToB64(new Uint8Array(raw)));
+    cryptoKey = key;
+    document.getElementById('lockOverlay').style.display = 'none';
+    renderLogs();
+  } catch {
+    document.getElementById('lockErr').style.display = 'block';
+  }
+}
+
+async function renderLogs() {
+  const tl = document.getElementById('timeline');
+  if (!ENCRYPTED_LOGS.length) {
+    tl.innerHTML = '<div style="color:#475569;font-size:.88rem;padding:12px">상담 일지가 없습니다.</div>';
+    return;
+  }
+  tl.innerHTML = '';
+  for (const log of ENCRYPTED_LOGS) {
+    const div = document.createElement('div');
+    div.className = 'log-item';
+    div.innerHTML = `<div class="log-date">${log.created_at}</div><div class="log-content decrypting">복호화 중...</div><div class="log-actions"><button class="btn btn-danger btn-sm" onclick="deleteLog(${log.id},this)">삭제</button></div>`;
+    tl.appendChild(div);
+    try {
+      const text = await decrypt(cryptoKey, log.iv, log.encrypted_content);
+      div.querySelector('.log-content').textContent = text;
+      div.querySelector('.log-content').classList.remove('decrypting');
+    } catch {
+      div.querySelector('.log-content').textContent = '[복호화 실패]';
+    }
+  }
+}
+
+async function saveCounsel() {
+  const text = document.getElementById('counselText').value.trim();
+  const date = document.getElementById('counselDate').value;
+  if (!text) return;
+  if (!cryptoKey) { alert('먼저 잠금을 해제해주세요.'); return; }
+  const {iv, ciphertext} = await encrypt(cryptoKey, text);
+  const res = await fetch('/api/pastoral/counsel', {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({member_id: MEMBER_ID, iv, encrypted_content: ciphertext, counsel_date: date})
+  });
+  if (res.ok) {
+    document.getElementById('counselText').value = '';
+    const data = await res.json();
+    ENCRYPTED_LOGS.unshift(data);
+    renderLogs();
+  }
+}
+
+async function deleteLog(id, btn) {
+  if (!confirm('이 상담 일지를 삭제할까요?')) return;
+  const res = await fetch(`/api/pastoral/counsel/${id}`, {method:'DELETE'});
+  if (res.ok) { btn.closest('.log-item').remove(); }
+}
+
+async function markContact() {
+  const today = new Date().toISOString().split('T')[0];
+  const res = await fetch(`/api/pastoral/members/${MEMBER_ID}/contact`, {method:'POST'});
+  if (res.ok) {
+    document.getElementById('lastContact').textContent = today;
+  }
+}
+
+function toggleEdit() {
+  const f = document.getElementById('editForm');
+  f.style.display = f.style.display === 'block' ? 'none' : 'block';
+}
+
+// 초기화
+(async () => {
+  const key = await loadKey();
+  if (key) {
+    cryptoKey = key;
+    document.getElementById('lockOverlay').style.display = 'none';
+    renderLogs();
+  }
+})();
+</script>
+</body>
+</html>

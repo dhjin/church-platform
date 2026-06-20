@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>기부금 영수증 — 목양 플래너</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Segoe UI',sans-serif;background:#0f172a;color:#e2e8f0;min-height:100vh}
+header{background:#1e293b;border-bottom:1px solid #334155;padding:12px 24px;display:flex;align-items:center;gap:16px}
+.logo{font-size:1rem;font-weight:700;color:#c7d2fe}
+header a{color:#94a3b8;font-size:.85rem;text-decoration:none}
+.main{max-width:900px;margin:0 auto;padding:28px 20px 60px}
+.toolbar{display:flex;gap:12px;align-items:center;margin-bottom:20px;flex-wrap:wrap}
+.toolbar select,.toolbar input{padding:9px 14px;background:#1e293b;border:1.5px solid #334155;border-radius:8px;color:#f1f5f9;font-size:.88rem;outline:none}
+.toolbar select:focus,.toolbar input:focus{border-color:#6366f1}
+.btn{padding:9px 18px;border-radius:8px;border:none;cursor:pointer;font-size:.85rem;font-weight:600;text-decoration:none;display:inline-block}
+.btn-primary{background:#6366f1;color:#fff}
+.btn-primary:hover{background:#4f46e5}
+.btn-sm{padding:5px 10px;font-size:.78rem}
+.btn-ghost{background:transparent;border:1px solid #334155;color:#94a3b8}
+.btn-success{background:#065f46;color:#6ee7b7}
+.btn-danger{background:#7f1d1d;color:#fca5a5}
+.add-form{background:#1e293b;border-radius:12px;padding:20px;border:1px solid #334155;margin-bottom:20px}
+.add-form h3{font-size:.9rem;color:#94a3b8;margin-bottom:16px;text-transform:uppercase;letter-spacing:.05em}
+.form-grid{display:grid;grid-template-columns:2fr 1fr 1fr 1fr auto;gap:8px;align-items:end}
+@media(max-width:700px){.form-grid{grid-template-columns:1fr 1fr}}
+.form-grid label{display:block;font-size:.75rem;color:#64748b;margin-bottom:4px}
+.form-grid input,.form-grid select{width:100%;padding:9px 12px;background:#0f172a;border:1.5px solid #334155;border-radius:8px;color:#f1f5f9;font-size:.88rem;outline:none}
+.form-grid input:focus,.form-grid select:focus{border-color:#6366f1}
+.summary-row{display:flex;gap:16px;margin-bottom:16px}
+.summary-card{background:#1e293b;border-radius:10px;padding:14px 20px;border:1px solid #334155;flex:1}
+.summary-card .val{font-size:1.4rem;font-weight:700;color:#c7d2fe}
+.summary-card .lbl{font-size:.75rem;color:#64748b;margin-top:2px}
+table{width:100%;border-collapse:collapse;background:#1e293b;border-radius:12px;overflow:hidden;border:1px solid #334155}
+th{padding:12px 16px;text-align:left;font-size:.78rem;text-transform:uppercase;letter-spacing:.05em;color:#64748b;border-bottom:1px solid #334155;background:#162032}
+td{padding:12px 16px;font-size:.88rem;border-bottom:1px solid #1e293b}
+tr:last-child td{border-bottom:none}
+tr:hover td{background:#1a2744}
+.amount{font-weight:600;color:#c7d2fe}
+.empty{text-align:center;padding:40px;color:#475569}
+</style>
+</head>
+<body>
+<header>
+  <div class="logo">✝</div>
+  <a href="/pastoral/dashboard">← 대시보드</a>
+  <a href="/pastoral/members">성도 관리</a>
+</header>
+
+<div class="main">
+  <div class="toolbar">
+    <select id="yearFilter" onchange="changeYear(this.value)">
+      {% for y in years %}
+      <option value="{{ y }}" {% if y == current_year %}selected{% endif %}>{{ y }}년</option>
+      {% endfor %}
+    </select>
+    <span style="color:#64748b;font-size:.85rem">{{ current_year }}년 기부금 내역</span>
+    <a href="/pastoral/donations/export/{{ current_year }}" class="btn btn-success btn-sm">CSV 내보내기</a>
+  </div>
+
+  <div class="summary-row">
+    <div class="summary-card"><div class="val">{{ receipts|length }}건</div><div class="lbl">총 건수</div></div>
+    <div class="summary-card"><div class="val">{{ '{:,}'.format(total_amount) }}원</div><div class="lbl">총 금액</div></div>
+  </div>
+
+  <div class="add-form">
+    <h3>기부금 입력</h3>
+    <form method="POST" action="/pastoral/donations/create">
+      <div class="form-grid">
+        <div>
+          <label>성도 이름</label>
+          <input list="memberNames" name="member_name" required placeholder="홍길동">
+          <datalist id="memberNames">
+            {% for m in members %}<option value="{{ m.name }}">{% endfor %}
+          </datalist>
+        </div>
+        <div>
+          <label>금액 (원)</label>
+          <input type="number" name="amount" required placeholder="100000" min="1">
+        </div>
+        <div>
+          <label>연도</label>
+          <input type="number" name="year" value="{{ current_year }}" required min="2020" max="2099">
+        </div>
+        <div>
+          <label>영수증 번호 (선택)</label>
+          <input name="receipt_number" placeholder="자동생성">
+        </div>
+        <div>
+          <button type="submit" class="btn btn-primary">추가</button>
+        </div>
+      </div>
+    </form>
+  </div>
+
+  {% if receipts %}
+  <table>
+    <thead>
+      <tr>
+        <th>성도명</th>
+        <th>금액</th>
+        <th>영수증 번호</th>
+        <th>발행일</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+    {% for r in receipts %}
+    <tr>
+      <td>{{ r.member_name }}</td>
+      <td class="amount">{{ '{:,}'.format(r.amount) }}원</td>
+      <td style="color:#64748b;font-size:.82rem">{{ r.receipt_number or '—' }}</td>
+      <td style="color:#64748b;font-size:.82rem">{{ r.issued_at|string|truncate(10,True,'') }}</td>
+      <td>
+        <form method="POST" action="/pastoral/donations/delete/{{ r.id }}" style="display:inline" onsubmit="return confirm('삭제할까요?')">
+          <button type="submit" class="btn btn-danger btn-sm">삭제</button>
+        </form>
+      </td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <div class="empty">{{ current_year }}년 기부금 내역이 없습니다.</div>
+  {% endif %}
+</div>
+<script>
+function changeYear(y) { location.href = '/pastoral/donations?year=' + y; }
+</script>
+</body>
+</html>

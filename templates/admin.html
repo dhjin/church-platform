@@ -17,6 +17,9 @@
                 <div class="admin-nav">
                     <h1 style="display: flex; align-items: center; gap: 8px;"><img src="/static/images/logo.png?v=2" alt="로고" style="height: 36px; width: 36px; object-fit: contain;"> 더하는 교회 관리자</h1>
                     <div class="admin-user-info">
+                        {% if user.role == 'owner' %}
+                        <a href="/pastoral/dashboard" style="color:#a78bfa;font-weight:600;font-size:.85rem;margin-right:8px">🙏 목양 플래너</a>
+                        {% endif %}
                         <span>👤 {{ user.username }}</span>
                         {% if user.role == 'owner' %}
                         <span style="background:#7c3aed;color:#fff;font-size:.72rem;padding:2px 8px;border-radius:10px;font-weight:600;">OWNER</span>

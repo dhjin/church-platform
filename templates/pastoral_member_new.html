@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>성도 등록 — 목양 플래너</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Segoe UI',sans-serif;background:#0f172a;color:#e2e8f0;min-height:100vh}
+header{background:#1e293b;border-bottom:1px solid #334155;padding:12px 24px;display:flex;align-items:center;gap:16px}
+.logo{font-size:1rem;font-weight:700;color:#c7d2fe}
+header a{color:#94a3b8;font-size:.85rem;text-decoration:none}
+.main{max-width:640px;margin:0 auto;padding:32px 20px}
+.card{background:#1e293b;border-radius:12px;padding:28px;border:1px solid #334155}
+h2{font-size:1.1rem;margin-bottom:24px;color:#f1f5f9}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+@media(max-width:500px){.grid2{grid-template-columns:1fr}}
+.field{margin-bottom:14px}
+label{display:block;font-size:.78rem;color:#94a3b8;margin-bottom:5px}
+input,select,textarea{width:100%;padding:10px 13px;background:#0f172a;border:1.5px solid #334155;border-radius:8px;color:#f1f5f9;font-size:.9rem;outline:none;font-family:inherit}
+input:focus,select:focus,textarea:focus{border-color:#6366f1}
+.btn{padding:11px 20px;border-radius:8px;border:none;cursor:pointer;font-size:.9rem;font-weight:600}
+.btn-primary{background:#6366f1;color:#fff}
+.btn-ghost{background:transparent;border:1px solid #334155;color:#94a3b8;margin-left:8px}
+</style>
+</head>
+<body>
+<header>
+  <div class="logo">✝</div>
+  <a href="/pastoral/dashboard">← 대시보드</a>
+</header>
+<div class="main">
+  <div class="card">
+    <h2>성도 등록</h2>
+    <form method="POST" action="/pastoral/members/create">
+      <div class="grid2">
+        <div class="field"><label>이름 *</label><input name="name" required></div>
+        <div class="field"><label>셀/목장</label><input name="cell_group" placeholder="은혜셀"></div>
+        <div class="field"><label>연락처</label><input name="phone" placeholder="010-0000-0000"></div>
+        <div class="field"><label>이메일</label><input name="email" type="email"></div>
+        <div class="field"><label>생년월일</label><input name="birth_date" type="date"></div>
+        <div class="field"><label>등록일</label><input name="join_date" type="date"></div>
+        <div class="field"><label>세례일</label><input name="baptism_date" type="date"></div>
+        <div class="field">
+          <label>상태</label>
+          <select name="status">
+            <option value="active">활성</option>
+            <option value="inactive">비활성</option>
+          </select>
+        </div>
+      </div>
+      <div class="field"><label>주소</label><input name="address"></div>
+      <div class="field"><label>메모</label><textarea name="notes" rows="3"></textarea></div>
+      <button type="submit" class="btn btn-primary">등록</button>
+      <a href="/pastoral/dashboard" class="btn btn-ghost">취소</a>
+    </form>
+  </div>
+</div>
+</body>
+</html>

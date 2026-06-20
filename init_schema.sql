@@ -178,3 +178,48 @@ CREATE TABLE IF NOT EXISTS offering_links (
 
 CREATE INDEX IF NOT EXISTS idx_bulletins_tenant ON bulletins(tenant_id);
 CREATE INDEX IF NOT EXISTS idx_offering_links_tenant ON offering_links(tenant_id);
+
+-- Phase 2: E2EE pastoral planner
+ALTER TABLE tenants ADD COLUMN IF NOT EXISTS e2ee_salt TEXT DEFAULT NULL;
+
+CREATE TABLE IF NOT EXISTS congregation_members (
+    id SERIAL PRIMARY KEY,
+    tenant_id INTEGER NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+    name TEXT NOT NULL,
+    birth_date DATE,
+    phone TEXT DEFAULT '',
+    email TEXT DEFAULT '',
+    address TEXT DEFAULT '',
+    join_date DATE,
+    baptism_date DATE,
+    cell_group TEXT DEFAULT '',
+    notes TEXT DEFAULT '',
+    last_contact_date DATE,
+    status TEXT NOT NULL DEFAULT 'active',
+    created_at TIMESTAMP DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS counseling_logs (
+    id SERIAL PRIMARY KEY,
+    tenant_id INTEGER NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+    member_id INTEGER REFERENCES congregation_members(id) ON DELETE SET NULL,
+    encrypted_content TEXT NOT NULL,
+    iv TEXT NOT NULL,
+    created_at TIMESTAMP DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS donation_receipts (
+    id SERIAL PRIMARY KEY,
+    tenant_id INTEGER NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+    member_id INTEGER REFERENCES congregation_members(id) ON DELETE SET NULL,
+    member_name TEXT NOT NULL,
+    amount INTEGER NOT NULL,
+    year INTEGER NOT NULL,
+    receipt_number TEXT,
+    issued_at TIMESTAMP DEFAULT NOW(),
+    created_at TIMESTAMP DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_congregation_tenant ON congregation_members(tenant_id);
+CREATE INDEX IF NOT EXISTS idx_counseling_member ON counseling_logs(member_id);
+CREATE INDEX IF NOT EXISTS idx_donations_tenant_year ON donation_receipts(tenant_id, year);
