@@ -569,6 +569,116 @@
                     </div>
                 </section>
 
+                <!-- Bulletin Management Section -->
+                <section class="admin-section" id="bulletin">
+                    <h2 class="section-title">주보 관리</h2>
+                    <div class="admin-card">
+                        <h3>주보 업로드</h3>
+                        <form method="POST" action="/admin/bulletin/upload" enctype="multipart/form-data">
+                            <div class="form-group" style="display:grid;grid-template-columns:1fr 1fr 2fr auto;gap:8px;align-items:end">
+                                <div>
+                                    <label>날짜</label>
+                                    <input type="date" name="date" required>
+                                </div>
+                                <div>
+                                    <label>제목 (선택)</label>
+                                    <input type="text" name="title" placeholder="예: 2026-06-22 주보">
+                                </div>
+                                <div>
+                                    <label>주보 이미지 (jpg/png/webp)</label>
+                                    <input type="file" name="image" accept="image/*,.pdf" required>
+                                </div>
+                                <div>
+                                    <button type="submit" class="btn btn-primary" style="margin-bottom:0">업로드</button>
+                                </div>
+                            </div>
+                        </form>
+                    </div>
+                    <div class="admin-card">
+                        <h3>등록된 주보</h3>
+                        {% if bulletins %}
+                        <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:12px">
+                            {% for b in bulletins %}
+                            <div style="border:1px solid #eee;border-radius:8px;overflow:hidden;text-align:center">
+                                <img src="{{ b.image_path }}" alt="{{ b.title }}" style="width:100%;aspect-ratio:3/4;object-fit:cover">
+                                <div style="padding:6px;font-size:.78rem;color:#555">{{ b.date }}</div>
+                                <form method="POST" action="/admin/bulletin/delete/{{ b.id }}" onsubmit="return confirm('삭제할까요?')">
+                                    <button type="submit" class="btn btn-danger" style="width:100%;border-radius:0;font-size:.78rem;padding:4px">삭제</button>
+                                </form>
+                            </div>
+                            {% endfor %}
+                        </div>
+                        {% else %}
+                        <p class="empty-message">등록된 주보가 없습니다.</p>
+                        {% endif %}
+                    </div>
+                </section>
+
+                <!-- Offering Links Section -->
+                <section class="admin-section" id="offering">
+                    <h2 class="section-title">온라인 헌금 링크 관리</h2>
+                    <div class="admin-card">
+                        <h3>헌금 수단 추가</h3>
+                        <form method="POST" action="/admin/offering/create">
+                            <div class="form-group" style="display:grid;grid-template-columns:1fr 1fr 2fr 1fr auto;gap:8px;align-items:end;flex-wrap:wrap">
+                                <div>
+                                    <label>표시 이름</label>
+                                    <input type="text" name="label" required placeholder="주일헌금, 감사헌금 ...">
+                                </div>
+                                <div>
+                                    <label>종류</label>
+                                    <select name="type" style="width:100%;padding:8px;border:1px solid #ddd;border-radius:6px">
+                                        <option value="kakao">카카오페이</option>
+                                        <option value="toss">토스</option>
+                                        <option value="bank">계좌이체</option>
+                                        <option value="other">기타</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label>링크 URL (선택)</label>
+                                    <input type="url" name="url" placeholder="https://qr.kakaopay.com/...">
+                                </div>
+                                <div>
+                                    <label>계좌번호/안내</label>
+                                    <input type="text" name="account_info" placeholder="국민 123-456-7890">
+                                </div>
+                                <div>
+                                    <button type="submit" class="btn btn-primary" style="margin-bottom:0">추가</button>
+                                </div>
+                            </div>
+                        </form>
+                    </div>
+                    <div class="admin-card">
+                        <h3>등록된 헌금 링크</h3>
+                        {% if offering_links %}
+                        <table style="width:100%;border-collapse:collapse;font-size:.9rem">
+                            <thead><tr style="background:#f8f9fa">
+                                <th style="padding:8px;text-align:left;border-bottom:1px solid #eee">이름</th>
+                                <th style="padding:8px;text-align:left;border-bottom:1px solid #eee">종류</th>
+                                <th style="padding:8px;text-align:left;border-bottom:1px solid #eee">링크/계좌</th>
+                                <th style="padding:8px;border-bottom:1px solid #eee">관리</th>
+                            </tr></thead>
+                            <tbody>
+                            {% for ol in offering_links %}
+                            <tr style="border-bottom:1px solid #f0f0f0">
+                                <td style="padding:8px">{{ ol.label }}</td>
+                                <td style="padding:8px">{{ ol.type }}</td>
+                                <td style="padding:8px;font-size:.82rem;color:#555">{{ ol.url or ol.account_info }}</td>
+                                <td style="padding:8px;text-align:center">
+                                    <form method="POST" action="/admin/offering/delete/{{ ol.id }}" style="display:inline" onsubmit="return confirm('삭제할까요?')">
+                                        <button type="submit" class="btn btn-danger" style="padding:4px 10px;font-size:.8rem">삭제</button>
+                                    </form>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                            </tbody>
+                        </table>
+                        {% else %}
+                        <p class="empty-message">등록된 헌금 링크가 없습니다.</p>
+                        {% endif %}
+                    </div>
+                </section>
+
                 {% endif %}{# end admin/owner only #}
 
                 <!-- News Management Section (manager+) -->

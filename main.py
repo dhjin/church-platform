@@ -1258,6 +1258,12 @@ async def admin_dashboard(request: Request, user: dict = Depends(require_manager
         cur.execute("SELECT id, username, name, role, email, created_at FROM users WHERE tenant_id=%s ORDER BY created_at ASC", (tenant_id,))
         site_users = [{"id": r[0], "username": r[1], "name": r[2], "role": r[3], "email": r[4], "created_at": r[5]} for r in cur.fetchall()]
 
+    cur.execute("SELECT id, title, date, image_path FROM bulletins WHERE tenant_id=%s ORDER BY date DESC", (tenant_id,))
+    bulletins = [{"id": r[0], "title": r[1], "date": str(r[2]), "image_path": r[3]} for r in cur.fetchall()]
+
+    cur.execute("SELECT id, label, type, url, account_info, sort_order FROM offering_links WHERE tenant_id=%s ORDER BY sort_order ASC", (tenant_id,))
+    offering_links = [{"id": r[0], "label": r[1], "type": r[2], "url": r[3], "account_info": r[4], "sort_order": r[5]} for r in cur.fetchall()]
+
     cur.close()
     conn.close()
     return templates.TemplateResponse("admin.html", {
@@ -1265,6 +1271,7 @@ async def admin_dashboard(request: Request, user: dict = Depends(require_manager
         "visions": visions, "sermons": sermons, "shorts": shorts, "qtys": qtys,
         "news_list": news_list, "church_intro": church_intro, "about": about,
         "pastoral_posts": pastoral_posts, "members": members, "site_users": site_users,
+        "bulletins": bulletins, "offering_links": offering_links,
     })
 
 
@@ -1795,6 +1802,221 @@ async def upload_image(
     with (upload_dir / fname).open("wb") as f:
         shutil.copyfileobj(image.file, f)
     return JSONResponse({"url": f"/uploads/{tenant_id}/{fname}"})
+
+
+# ─── Bulletin (주보) ─────────────────────────────────────────────────────────
+
+@app.get("/bulletin", response_class=HTMLResponse)
+async def bulletin_page(request: Request):
+    tenant = request.state.tenant
+    if not tenant:
+        raise HTTPException(404)
+    tenant_id = tenant["id"]
+    conn = get_conn()
+    cur = conn.cursor()
+    cur.execute(
+        "SELECT id, title, date, image_path FROM bulletins WHERE tenant_id=%s ORDER BY date DESC",
+        (tenant_id,),
+    )
+    bulletins = [{"id": r[0], "title": r[1], "date": str(r[2]), "image_path": r[3]} for r in cur.fetchall()]
+    cur.execute(
+        "SELECT label, type, url, account_info FROM offering_links WHERE tenant_id=%s ORDER BY sort_order ASC",
+        (tenant_id,),
+    )
+    offering_links = [{"label": r[0], "type": r[1], "url": r[2], "account_info": r[3]} for r in cur.fetchall()]
+    cur.close()
+    conn.close()
+
+    latest = bulletins[0] if bulletins else None
+    archive = bulletins[1:] if len(bulletins) > 1 else []
+
+    church_name = tenant["church_name"]
+    offering_html = ""
+    if offering_links:
+        type_icon = {"kakao": "💛", "toss": "💙", "bank": "🏦", "other": "💝"}
+        cards = ""
+        for ol in offering_links:
+            icon = type_icon.get(ol["type"], "💝")
+            if ol["url"]:
+                cards += f'<a href="{ol["url"]}" target="_blank" class="offering-card"><span class="offering-icon">{icon}</span><span class="offering-label">{ol["label"]}</span></a>'
+            else:
+                cards += f'<div class="offering-card no-link"><span class="offering-icon">{icon}</span><span class="offering-label">{ol["label"]}</span><span class="offering-account">{ol["account_info"]}</span></div>'
+        offering_html = f'<section class="offering-section"><h2 class="section-heading">온라인 헌금</h2><div class="offering-grid">{cards}</div></section>'
+
+    archive_html = ""
+    if archive:
+        items = "".join(
+            f'<div class="archive-item" onclick="showBulletin(\'{b["image_path"]}\',\'{b["title"]}\',\'{b["date"]}\')">'
+            f'<img src="{b["image_path"]}" alt="{b["title"]}" loading="lazy">'
+            f'<div class="archive-label">{b["date"]}</div></div>'
+            for b in archive
+        )
+        archive_html = f'<section class="bulletin-archive"><h2 class="section-heading">이전 주보</h2><div class="archive-grid">{items}</div></section>'
+
+    latest_html = ""
+    if latest:
+        latest_html = f'''
+        <section class="bulletin-latest">
+          <h2 class="section-heading">이번 주 주보</h2>
+          <div class="bulletin-viewer">
+            <img id="mainBulletin" src="{latest["image_path"]}" alt="{latest["title"]}" style="max-width:100%;border-radius:12px;box-shadow:0 4px 20px rgba(0,0,0,.12)">
+            <p id="bulletinCaption" style="text-align:center;margin-top:8px;color:#666;font-size:.88rem">{latest["title"]} · {latest["date"]}</p>
+          </div>
+        </section>'''
+
+    html = f"""<!DOCTYPE html>
+<html lang="ko"><head><meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>주보 — {church_name}</title>
+<link rel="stylesheet" href="/static/css/style.css?v=26">
+<style>
+.bulletin-page{{max-width:700px;margin:0 auto;padding:24px 16px 60px}}
+.section-heading{{font-size:1.1rem;color:#1e3a5f;margin:32px 0 16px;font-weight:700;border-left:4px solid #2d6a9f;padding-left:10px}}
+.bulletin-viewer{{text-align:center}}
+.archive-grid{{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:12px}}
+.archive-item{{cursor:pointer;border-radius:8px;overflow:hidden;border:2px solid transparent;transition:.2s}}
+.archive-item:hover{{border-color:#2d6a9f}}
+.archive-item img{{width:100%;aspect-ratio:3/4;object-fit:cover}}
+.archive-label{{text-align:center;font-size:.75rem;color:#666;padding:4px 0}}
+.offering-grid{{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:12px}}
+.offering-card{{display:flex;flex-direction:column;align-items:center;padding:20px 12px;background:#f8faff;border:1.5px solid #dbe4f0;border-radius:12px;text-decoration:none;color:#333;transition:.2s;cursor:pointer}}
+.offering-card:hover{{border-color:#2d6a9f;background:#eef4ff}}
+.offering-card.no-link{{cursor:default}}
+.offering-icon{{font-size:1.8rem;margin-bottom:6px}}
+.offering-label{{font-size:.88rem;font-weight:600;text-align:center}}
+.offering-account{{font-size:.78rem;color:#666;margin-top:4px;text-align:center}}
+.modal-overlay{{display:none;position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:1000;align-items:center;justify-content:center}}
+.modal-overlay.open{{display:flex}}
+.modal-img{{max-width:90vw;max-height:90vh;border-radius:10px}}
+.modal-close{{position:absolute;top:16px;right:20px;color:#fff;font-size:2rem;cursor:pointer;line-height:1}}
+</style></head><body>
+<header class="site-header">
+  <div class="container">
+    <nav class="main-nav">
+      <a href="/" class="logo">{church_name}</a>
+      <ul class="nav-links">
+        <li><a href="/">홈</a></li>
+        <li><a href="/bulletin" class="active">주보</a></li>
+        <li><a href="/news">교회소식</a></li>
+      </ul>
+    </nav>
+  </div>
+</header>
+<main class="bulletin-page">
+  {latest_html}
+  {offering_html}
+  {archive_html}
+</main>
+<div class="modal-overlay" id="modal" onclick="closeModal()">
+  <span class="modal-close">&times;</span>
+  <img class="modal-img" id="modalImg" src="" alt="">
+</div>
+<script>
+function showBulletin(src, title, date) {{
+  document.getElementById('mainBulletin').src = src;
+  document.getElementById('bulletinCaption').textContent = title + ' · ' + date;
+  window.scrollTo({{top:0, behavior:'smooth'}});
+}}
+function closeModal() {{ document.getElementById('modal').classList.remove('open'); }}
+document.querySelectorAll('.archive-item img').forEach(img => {{
+  img.addEventListener('click', e => {{
+    e.stopPropagation();
+    document.getElementById('modalImg').src = img.src;
+    document.getElementById('modal').classList.add('open');
+  }});
+}});
+</script>
+</body></html>"""
+    return HTMLResponse(html)
+
+
+# ─── Admin: Bulletin ──────────────────────────────────────────────────────────
+
+@app.post("/admin/bulletin/upload")
+async def upload_bulletin(
+    request: Request,
+    title: str = Form(""),
+    date: str = Form(...),
+    image: UploadFile = File(...),
+    user: dict = Depends(require_admin),
+):
+    tenant_id = user["tenant_id"]
+    if not image.filename:
+        raise HTTPException(400, "이미지를 선택해주세요.")
+    ext = Path(image.filename).suffix.lower()
+    if ext not in (".jpg", ".jpeg", ".png", ".webp", ".pdf"):
+        raise HTTPException(400, "jpg/png/webp/pdf 파일만 가능합니다.")
+    upload_dir = get_upload_dir(tenant_id)
+    fname = f"bulletin_{date}{ext}"
+    with (upload_dir / fname).open("wb") as f:
+        shutil.copyfileobj(image.file, f)
+    image_path = f"/uploads/{tenant_id}/{fname}"
+    display_title = title or f"{date} 주보"
+    conn = get_conn()
+    cur = conn.cursor()
+    cur.execute(
+        "INSERT INTO bulletins (tenant_id, title, date, image_path) VALUES (%s,%s,%s,%s) "
+        "ON CONFLICT DO NOTHING",
+        (tenant_id, display_title, date, image_path),
+    )
+    conn.commit()
+    cur.close()
+    conn.close()
+    return RedirectResponse(url="/admin#bulletin", status_code=303)
+
+
+@app.post("/admin/bulletin/delete/{bulletin_id}")
+async def delete_bulletin(bulletin_id: int, user: dict = Depends(require_admin)):
+    tenant_id = user["tenant_id"]
+    conn = get_conn()
+    cur = conn.cursor()
+    cur.execute("SELECT image_path FROM bulletins WHERE id=%s AND tenant_id=%s", (bulletin_id, tenant_id))
+    row = cur.fetchone()
+    if row:
+        path = Path("." + row[0])
+        if path.exists():
+            path.unlink()
+        cur.execute("DELETE FROM bulletins WHERE id=%s AND tenant_id=%s", (bulletin_id, tenant_id))
+        conn.commit()
+    cur.close()
+    conn.close()
+    return RedirectResponse(url="/admin#bulletin", status_code=303)
+
+
+# ─── Admin: Offering links ───────────────────────────────────────────────────
+
+@app.post("/admin/offering/create")
+async def create_offering_link(
+    label: str = Form(...),
+    type: str = Form("bank"),
+    url: str = Form(""),
+    account_info: str = Form(""),
+    sort_order: int = Form(0),
+    user: dict = Depends(require_admin),
+):
+    tenant_id = user["tenant_id"]
+    conn = get_conn()
+    cur = conn.cursor()
+    cur.execute(
+        "INSERT INTO offering_links (tenant_id, label, type, url, account_info, sort_order) VALUES (%s,%s,%s,%s,%s,%s)",
+        (tenant_id, label, type, url, account_info, sort_order),
+    )
+    conn.commit()
+    cur.close()
+    conn.close()
+    return RedirectResponse(url="/admin#offering", status_code=303)
+
+
+@app.post("/admin/offering/delete/{link_id}")
+async def delete_offering_link(link_id: int, user: dict = Depends(require_admin)):
+    tenant_id = user["tenant_id"]
+    conn = get_conn()
+    cur = conn.cursor()
+    cur.execute("DELETE FROM offering_links WHERE id=%s AND tenant_id=%s", (link_id, tenant_id))
+    conn.commit()
+    cur.close()
+    conn.close()
+    return RedirectResponse(url="/admin#offering", status_code=303)
 
 
 # ─── Platform Lounge ─────────────────────────────────────────────────────────

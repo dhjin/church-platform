@@ -156,3 +156,25 @@ CREATE TABLE IF NOT EXISTS invite_codes (
 );
 
 CREATE INDEX IF NOT EXISTS idx_invite_codes_code ON invite_codes(code);
+
+CREATE TABLE IF NOT EXISTS bulletins (
+    id SERIAL PRIMARY KEY,
+    tenant_id INTEGER NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+    title TEXT NOT NULL DEFAULT '',
+    date DATE NOT NULL,
+    image_path TEXT NOT NULL,
+    created_at TIMESTAMP DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS offering_links (
+    id SERIAL PRIMARY KEY,
+    tenant_id INTEGER NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+    label TEXT NOT NULL,
+    type TEXT NOT NULL DEFAULT 'bank',
+    url TEXT NOT NULL DEFAULT '',
+    account_info TEXT NOT NULL DEFAULT '',
+    sort_order INTEGER NOT NULL DEFAULT 0
+);
+
+CREATE INDEX IF NOT EXISTS idx_bulletins_tenant ON bulletins(tenant_id);
+CREATE INDEX IF NOT EXISTS idx_offering_links_tenant ON offering_links(tenant_id);
