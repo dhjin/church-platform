@@ -1,0 +1,9 @@
+fastapi
+uvicorn[standard]
+jinja2
+python-multipart
+psycopg2-binary
+bcrypt
+python-dotenv
+aiofiles
+pydantic

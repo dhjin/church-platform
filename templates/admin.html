@@ -1,0 +1,785 @@
+<!DOCTYPE html>
+<html lang="ko">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>관리자 페이지 - 더하는 교회</title>
+    <link rel="stylesheet" href="/static/css/style.css?v=26">
+    <link rel="stylesheet" href="/static/css/admin.css?v=15">
+</head>
+
+<body>
+    <div class="admin-wrapper">
+        <!-- Admin Header -->
+        <header class="admin-header">
+            <div class="container">
+                <div class="admin-nav">
+                    <h1 style="display: flex; align-items: center; gap: 8px;"><img src="/static/images/logo.png?v=2" alt="로고" style="height: 36px; width: 36px; object-fit: contain;"> 더하는 교회 관리자</h1>
+                    <div class="admin-user-info">
+                        <span>👤 {{ user.username }}</span>
+                        <a href="/logout" class="btn-logout">로그아웃</a>
+                        <a href="/" class="btn-home">홈페이지</a>
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <div class="admin-container">
+            <div class="container">
+                <!-- Church Info Section -->
+                <section class="admin-section">
+                    <h2 class="section-title">교회 소개 관리</h2>
+                    <div class="admin-card">
+                        <form method="POST" action="/admin/church-info/update">
+                            <div class="form-group">
+                                <label for="church-intro">교회 소개 내용</label>
+                                <textarea id="church-intro" name="content" rows="5"
+                                    required>{{ church_intro }}</textarea>
+                            </div>
+                            <button type="submit" class="btn btn-primary">저장</button>
+                        </form>
+                    </div>
+                </section>
+
+                <!-- Vision Management Section -->
+                <section class="admin-section">
+                    <h2 class="section-title">교회비전 관리</h2>
+
+                    <!-- Create Vision Form -->
+                    <div class="admin-card">
+                        <h3>새 비전 영상 등록</h3>
+                        <form method="POST" action="/admin/vision/create">
+                            <div class="form-group">
+                                <label for="vision-title">영상 제목</label>
+                                <input type="text" id="vision-title" name="title" required>
+                            </div>
+                            <div class="form-group">
+                                <label for="youtube-url">YouTube 링크</label>
+                                <input type="url" id="youtube-url" name="youtube_url"
+                                    placeholder="https://www.youtube.com/watch?v=..." required>
+                                <small class="form-hint">YouTube 영상 URL을 입력하세요. 썸네일이 자동으로 추출됩니다.</small>
+                            </div>
+                            <button type="submit" class="btn btn-primary">비전 등록</button>
+                        </form>
+                    </div>
+
+                    <!-- Vision List -->
+                    <div class="admin-card">
+                        <h3>등록된 비전 목록</h3>
+                        <div class="vision-list-admin">
+                            {% if visions %}
+                            <table class="admin-table">
+                                <thead>
+                                    <tr>
+                                        <th>번호</th>
+                                        <th>제목</th>
+                                        <th>작성자</th>
+                                        <th>작성일</th>
+                                        <th>YouTube ID</th>
+                                        <th>관리</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for vision in visions %}
+                                    <tr>
+                                        <td>{{ vision.id }}</td>
+                                        <td>{{ vision.title }}</td>
+                                        <td>{{ vision.author }}</td>
+                                        <td>{{ vision.date }}</td>
+                                        <td><code>{{ vision.youtube_id }}</code></td>
+                                        <td>
+                                            <form method="POST" action="/admin/vision/delete/{{ vision.id }}"
+                                                style="display: inline;">
+                                                <button type="submit" class="btn-delete"
+                                                    onclick="return confirm('정말 삭제하시겠습니까?')">삭제</button>
+                                            </form>
+                                        </td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                            {% else %}
+                            <p class="empty-message">등록된 비전이 없습니다.</p>
+                            {% endif %}
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Sermon Management Section -->
+                <section class="admin-section">
+                    <h2 class="section-title">설교 관리</h2>
+
+                    <!-- Create Sermon Form -->
+                    <div class="admin-card">
+                        <h3>새 설교 등록</h3>
+                        <form method="POST" action="/admin/sermon/create">
+                            <div class="form-group">
+                                <label for="sermon-title">설교 제목</label>
+                                <input type="text" id="sermon-title" name="title" required>
+                            </div>
+                            <div class="form-group">
+                                <label for="pastor">설교자</label>
+                                <input type="text" id="pastor" name="pastor" value="김한기 목사" required>
+                            </div>
+                            <div class="form-group">
+                                <label for="sermon-youtube-url">YouTube 링크 (선택)</label>
+                                <input type="url" id="sermon-youtube-url" name="youtube_url"
+                                    placeholder="https://www.youtube.com/watch?v=...">
+                                <small class="form-hint">YouTube 영상 URL을 입력하면 썸네일이 자동으로 표시됩니다. (선택사항)</small>
+                            </div>
+                            <div class="form-group">
+                                <label for="sermon-description">설교 요약</label>
+                                <textarea id="sermon-description" name="description" rows="4" required></textarea>
+                            </div>
+                            <button type="submit" class="btn btn-primary">설교 등록</button>
+                        </form>
+                    </div>
+
+                    <!-- Sermon List -->
+                    <div class="admin-card">
+                        <h3>등록된 설교 목록</h3>
+                        <div class="sermon-list-admin">
+                            {% if sermons %}
+                            <table class="admin-table">
+                                <thead>
+                                    <tr>
+                                        <th>설교 정보</th>
+                                        <th>관리</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="sermon-list">
+                                    {% for sermon in sermons %}
+                                    <tr class="sermon-row" data-sermon-id="{{ sermon.id }}">
+                                        <td class="sermon-display">
+                                            <div class="sermon-info">
+                                                <strong>{{ sermon.title }}</strong>
+                                                <span>{{ sermon.pastor }} | {{ sermon.date }}</span>
+                                            </div>
+                                            <div class="sermon-description">{{ sermon.description[:100] }}...</div>
+                                        </td>
+                                        <td>
+                                            <button class="btn-edit" onclick="editSermon({{ sermon.id }})">수정</button>
+                                            <form method="POST" action="/admin/sermon/delete/{{ sermon.id }}"
+                                                style="display: inline;">
+                                                <button type="submit" class="btn-delete"
+                                                    onclick="return confirm('정말 삭제하시겠습니까?')">삭제</button>
+                                            </form>
+                                        </td>
+                                    </tr>
+                                    <tr class="sermon-edit-row" id="edit-{{ sermon.id }}" style="display: none;">
+                                        <td colspan="2">
+                                            <form method="POST" action="/admin/sermon/update/{{ sermon.id }}"
+                                                class="inline-edit-form">
+                                                <div class="form-row">
+                                                    <input type="text" name="title" value="{{ sermon.title }}"
+                                                        placeholder="설교 제목" required>
+                                                    <input type="text" name="pastor" value="{{ sermon.pastor }}"
+                                                        placeholder="설교자" required>
+                                                    <input type="date" name="date" value="{{ sermon.date }}" required>
+                                                </div>
+                                                <input type="url" name="youtube_url"
+                                                    value="{{ sermon.youtube_url or '' }}"
+                                                    placeholder="YouTube 링크 (선택)">
+                                                <textarea name="description" rows="4" required
+                                                    placeholder="설교 요약">{{ sermon.description }}</textarea>
+                                                <div class="form-actions">
+                                                    <button type="submit" class="btn btn-primary">저장</button>
+                                                    <button type="button" class="btn btn-secondary"
+                                                        onclick="cancelEdit({{ sermon.id }})">취소</button>
+                                                </div>
+                                            </form>
+                                        </td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                            {% else %}
+                            <p class="empty-message">등록된 설교가 없습니다.</p>
+                            {% endif %}
+                        </div>
+                    </div>
+                </section>
+
+                <!-- YouTube Shorts Management Section -->
+                <section class="admin-section">
+                    <h2 class="section-title">더하는교회 숏츠 관리</h2>
+
+                    <!-- Create Shorts Form -->
+                    <div class="admin-card">
+                        <h3>새 숏츠 등록</h3>
+                        <form method="POST" action="/admin/shorts/create">
+                            <div class="form-group">
+                                <label for="shorts-title">숏츠 제목</label>
+                                <input type="text" id="shorts-title" name="title" required>
+                            </div>
+                            <div class="form-group">
+                                <label for="shorts-youtube-url">YouTube Shorts 링크</label>
+                                <input type="url" id="shorts-youtube-url" name="youtube_url"
+                                    placeholder="https://www.youtube.com/shorts/..." required>
+                                <small class="form-hint">YouTube Shorts URL을 입력하세요. 썸네일이 자동으로 추출됩니다.</small>
+                            </div>
+                            <button type="submit" class="btn btn-primary">숏츠 등록</button>
+                        </form>
+                    </div>
+
+                    <!-- Shorts List -->
+                    <div class="admin-card">
+                        <h3>숏츠 목록</h3>
+                        {% if shorts %}
+                        <table class="admin-table">
+                            <thead>
+                                <tr>
+                                    <th>제목</th>
+                                    <th>등록일</th>
+                                    <th>관리</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for short in shorts %}
+                                <tr class="shorts-row" data-shorts-id="{{ short.id }}">
+                                    <td>{{ short.title }}</td>
+                                    <td>{{ short.date }}</td>
+                                    <td>
+                                        <button class="btn-edit" onclick="editShorts({{ short.id }})">수정</button>
+                                        <form method="POST" action="/admin/shorts/delete/{{ short.id }}"
+                                            style="display: inline;">
+                                            <button type="submit" class="btn-delete"
+                                                onclick="return confirm('정말 삭제하시겠습니까?')">삭제</button>
+                                        </form>
+                                    </td>
+                                </tr>
+                                <tr class="shorts-edit-row" id="shorts-edit-{{ short.id }}" style="display: none;">
+                                    <td colspan="3">
+                                        <form method="POST" action="/admin/shorts/update/{{ short.id }}"
+                                            class="inline-edit-form">
+                                            <div class="form-row">
+                                                <input type="text" name="title" value="{{ short.title }}"
+                                                    placeholder="제목" required>
+                                                <input type="date" name="date" value="{{ short.date }}" required>
+                                            </div>
+                                            <input type="url" name="youtube_url" value="{{ short.youtube_url }}"
+                                                placeholder="YouTube URL" required
+                                                style="width:100%;margin-bottom:10px;">
+                                            <div class="form-actions">
+                                                <button type="submit" class="btn btn-primary">저장</button>
+                                                <button type="button" class="btn btn-secondary"
+                                                    onclick="cancelEditShorts({{ short.id }})">취소</button>
+                                            </div>
+                                        </form>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                        {% else %}
+                        <p class="empty-message">등록된 숏츠가 없습니다.</p>
+                        {% endif %}
+                    </div>
+                </section>
+
+                <!-- 오늘의 QT Management Section -->
+                <section class="admin-section">
+                    <h2 class="section-title">오늘의 QT 관리</h2>
+
+                    <!-- Create QT Form -->
+                    <div class="admin-card">
+                        <h3>새 QT 등록</h3>
+                        <form method="POST" action="/admin/qty/create">
+                            <div class="form-group">
+                                <label for="qty-title">QT 제목</label>
+                                <input type="text" id="qty-title" name="title" required>
+                            </div>
+                            <div class="form-group">
+                                <label for="qty-youtube-url">YouTube 링크</label>
+                                <input type="url" id="qty-youtube-url" name="youtube_url"
+                                    placeholder="https://www.youtube.com/watch?v=..." required>
+                                <small class="form-hint">YouTube URL을 입력하세요. 썸네일이 자동으로 추출됩니다.</small>
+                            </div>
+                            <button type="submit" class="btn btn-primary">QT 등록</button>
+                        </form>
+                    </div>
+
+                    <!-- QT List -->
+                    <div class="admin-card">
+                        <h3>QT 목록</h3>
+                        {% if qtys %}
+                        <table class="admin-table">
+                            <thead>
+                                <tr>
+                                    <th>제목</th>
+                                    <th>등록일</th>
+                                    <th>관리</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for qty in qtys %}
+                                <tr class="qty-row" data-qty-id="{{ qty.id }}">
+                                    <td>{{ qty.title }}</td>
+                                    <td>{{ qty.date }}</td>
+                                    <td>
+                                        <button class="btn-edit" onclick="editQty({{ qty.id }})">수정</button>
+                                        <form method="POST" action="/admin/qty/delete/{{ qty.id }}"
+                                            style="display: inline;">
+                                            <button type="submit" class="btn-delete"
+                                                onclick="return confirm('정말 삭제하시겠습니까?')">삭제</button>
+                                        </form>
+                                    </td>
+                                </tr>
+                                <tr class="qty-edit-row" id="qty-edit-{{ qty.id }}" style="display: none;">
+                                    <td colspan="3">
+                                        <form method="POST" action="/admin/qty/update/{{ qty.id }}"
+                                            class="inline-edit-form">
+                                            <div class="form-row">
+                                                <input type="text" name="title" value="{{ qty.title }}" placeholder="제목"
+                                                    required>
+                                                <input type="date" name="date" value="{{ qty.date }}" required>
+                                            </div>
+                                            <input type="url" name="youtube_url" value="{{ qty.youtube_url }}"
+                                                placeholder="YouTube URL" required
+                                                style="width:100%;margin-bottom:10px;">
+                                            <div class="form-actions">
+                                                <button type="submit" class="btn btn-primary">저장</button>
+                                                <button type="button" class="btn btn-secondary"
+                                                    onclick="cancelEditQty({{ qty.id }})">취소</button>
+                                            </div>
+                                        </form>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                        {% else %}
+                        <p class="empty-message">등록된 QT가 없습니다.</p>
+                        {% endif %}
+                    </div>
+                </section>
+
+                <!-- 목양의 窓 Management Section -->
+                <section class="admin-section">
+                    <h2 class="section-title">목양의 窓 관리</h2>
+
+                    <div class="admin-card">
+                        <h3>새 글 작성</h3>
+                        <form method="POST" action="/admin/pastoral/create" enctype="multipart/form-data">
+                            <div class="form-group">
+                                <label for="pastoral-title">제목</label>
+                                <input type="text" id="pastoral-title" name="title" required>
+                            </div>
+                            <div class="form-group">
+                                <label for="pastoral-content">내용</label>
+                                <div class="editor-toolbar" style="display: flex; gap: 8px; margin-bottom: 8px; flex-wrap: wrap;">
+                                    <button type="button" onclick="insertBold()" class="btn btn-sm" style="padding: 4px 10px; font-size: 0.85rem; background: #f0f0f0; border: 1px solid #ccc; border-radius: 4px; cursor: pointer;"><b>B</b></button>
+                                    <button type="button" onclick="insertHeading()" class="btn btn-sm" style="padding: 4px 10px; font-size: 0.85rem; background: #f0f0f0; border: 1px solid #ccc; border-radius: 4px; cursor: pointer;">H2</button>
+                                    <label style="padding: 4px 10px; font-size: 0.85rem; background: #4CAF50; color: white; border-radius: 4px; cursor: pointer; display: inline-flex; align-items: center; gap: 4px;">
+                                        &#128247; 이미지 삽입
+                                        <input type="file" accept="image/*" onchange="insertInlineImage(this)" style="display: none;">
+                                    </label>
+                                </div>
+                                <textarea id="pastoral-content" name="content" rows="12" required style="font-family: monospace; font-size: 0.95rem;"></textarea>
+                                <small class="form-hint">본문 중간에 이미지를 삽입할 수 있습니다. HTML 태그를 사용할 수 있습니다.</small>
+                            </div>
+                            <div class="form-group">
+                                <label for="pastoral-image">이미지 (여러 장 선택 가능)</label>
+                                <input type="file" id="pastoral-image" name="images" accept="image/*" multiple>
+                                <small class="form-hint">첫 번째 이미지가 썸네일로 사용됩니다. 미첨부 시 기본 아이콘이 표시됩니다.</small>
+                            </div>
+                            <button type="submit" class="btn btn-primary">글 등록</button>
+                        </form>
+                    </div>
+
+                    <script>
+                    function insertInlineImage(input) {
+                        if (!input.files || !input.files[0]) return;
+                        const file = input.files[0];
+                        const formData = new FormData();
+                        formData.append('image', file);
+
+                        fetch('/admin/upload-image', {
+                            method: 'POST',
+                            body: formData
+                        })
+                        .then(r => r.json())
+                        .then(data => {
+                            if (data.url) {
+                                const textarea = document.getElementById('pastoral-content');
+                                const pos = textarea.selectionStart;
+                                const before = textarea.value.substring(0, pos);
+                                const after = textarea.value.substring(pos);
+                                const imgTag = '\n<img src="' + data.url + '" alt="이미지" style="max-width:100%; border-radius:8px; margin:1rem 0;">\n';
+                                textarea.value = before + imgTag + after;
+                                textarea.focus();
+                                textarea.selectionStart = textarea.selectionEnd = pos + imgTag.length;
+                            } else {
+                                alert('이미지 업로드 실패: ' + (data.error || '알 수 없는 오류'));
+                            }
+                        })
+                        .catch(err => alert('업로드 오류: ' + err.message));
+
+                        input.value = '';
+                    }
+
+                    function insertBold() {
+                        const textarea = document.getElementById('pastoral-content');
+                        const start = textarea.selectionStart;
+                        const end = textarea.selectionEnd;
+                        const selected = textarea.value.substring(start, end);
+                        const before = textarea.value.substring(0, start);
+                        const after = textarea.value.substring(end);
+                        textarea.value = before + '<b>' + (selected || '텍스트') + '</b>' + after;
+                        textarea.focus();
+                    }
+
+                    function insertHeading() {
+                        const textarea = document.getElementById('pastoral-content');
+                        const start = textarea.selectionStart;
+                        const end = textarea.selectionEnd;
+                        const selected = textarea.value.substring(start, end);
+                        const before = textarea.value.substring(0, start);
+                        const after = textarea.value.substring(end);
+                        textarea.value = before + '\n<h3>' + (selected || '소제목') + '</h3>\n' + after;
+                        textarea.focus();
+                    }
+
+                    function editPastoral(id) {
+                        document.querySelector('.pastoral-row[data-pastoral-id="' + id + '"]').style.display = 'none';
+                        document.getElementById('pastoral-edit-' + id).style.display = 'table-row';
+                    }
+
+                    function cancelEditPastoral(id) {
+                        document.querySelector('.pastoral-row[data-pastoral-id="' + id + '"]').style.display = '';
+                        document.getElementById('pastoral-edit-' + id).style.display = 'none';
+                    }
+
+                    function insertInlineImageEdit(input, postId) {
+                        if (!input.files || !input.files[0]) return;
+                        const file = input.files[0];
+                        const formData = new FormData();
+                        formData.append('image', file);
+                        fetch('/admin/upload-image', { method: 'POST', body: formData })
+                        .then(r => r.json())
+                        .then(data => {
+                            if (data.url) {
+                                const textarea = document.getElementById('pastoral-edit-content-' + postId);
+                                const pos = textarea.selectionStart;
+                                const before = textarea.value.substring(0, pos);
+                                const after = textarea.value.substring(pos);
+                                const imgTag = '\n<img src="' + data.url + '" alt="이미지" style="max-width:100%; border-radius:8px; margin:1rem 0;">\n';
+                                textarea.value = before + imgTag + after;
+                                textarea.focus();
+                            } else { alert('업로드 실패: ' + (data.error || '')); }
+                        }).catch(err => alert('오류: ' + err.message));
+                        input.value = '';
+                    }
+
+                    function insertBoldEdit(postId) {
+                        const textarea = document.getElementById('pastoral-edit-content-' + postId);
+                        const start = textarea.selectionStart, end = textarea.selectionEnd;
+                        const selected = textarea.value.substring(start, end);
+                        textarea.value = textarea.value.substring(0, start) + '<b>' + (selected || '텍스트') + '</b>' + textarea.value.substring(end);
+                        textarea.focus();
+                    }
+
+                    function insertHeadingEdit(postId) {
+                        const textarea = document.getElementById('pastoral-edit-content-' + postId);
+                        const start = textarea.selectionStart, end = textarea.selectionEnd;
+                        const selected = textarea.value.substring(start, end);
+                        textarea.value = textarea.value.substring(0, start) + '\n<h3>' + (selected || '소제목') + '</h3>\n' + textarea.value.substring(end);
+                        textarea.focus();
+                    }
+                    </script>
+
+                    <div class="admin-card">
+                        <h3>등록된 글 목록</h3>
+                        {% if pastoral_posts %}
+                        <table class="admin-table">
+                            <thead>
+                                <tr>
+                                    <th>ID</th>
+                                    <th>제목</th>
+                                    <th>작성자</th>
+                                    <th>날짜</th>
+                                    <th>조회</th>
+                                    <th>이미지</th>
+                                    <th>관리</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for post in pastoral_posts %}
+                                <tr class="pastoral-row" data-pastoral-id="{{ post.id }}">
+                                    <td>{{ post.id }}</td>
+                                    <td><a href="/pastoral/{{ post.id }}" target="_blank">{{ post.title }}</a></td>
+                                    <td>{{ post.author }}</td>
+                                    <td>{{ post.created_at }}</td>
+                                    <td>{{ post.views }}</td>
+                                    <td>{{ '✅' if post.image_path else '❌' }}</td>
+                                    <td>
+                                        <button class="btn-edit" onclick="editPastoral({{ post.id }})">수정</button>
+                                        <form method="POST" action="/admin/pastoral/delete/{{ post.id }}" style="display: inline;">
+                                            <button type="submit" class="btn btn-danger btn-sm"
+                                                onclick="return confirm('정말 삭제하시겠습니까?')">삭제</button>
+                                        </form>
+                                    </td>
+                                </tr>
+                                <tr class="pastoral-edit-row" id="pastoral-edit-{{ post.id }}" style="display: none;">
+                                    <td colspan="7">
+                                        <form method="POST" action="/admin/pastoral/update/{{ post.id }}" enctype="multipart/form-data" class="inline-edit-form">
+                                            <div class="form-group">
+                                                <label>제목</label>
+                                                <input type="text" name="title" value="{{ post.title }}" required>
+                                            </div>
+                                            <div class="form-group">
+                                                <label>내용</label>
+                                                <div class="editor-toolbar" style="display: flex; gap: 8px; margin-bottom: 8px; flex-wrap: wrap;">
+                                                    <button type="button" onclick="insertBoldEdit({{ post.id }})" class="btn btn-sm" style="padding: 4px 10px; font-size: 0.85rem; background: #f0f0f0; border: 1px solid #ccc; border-radius: 4px; cursor: pointer;"><b>B</b></button>
+                                                    <button type="button" onclick="insertHeadingEdit({{ post.id }})" class="btn btn-sm" style="padding: 4px 10px; font-size: 0.85rem; background: #f0f0f0; border: 1px solid #ccc; border-radius: 4px; cursor: pointer;">H2</button>
+                                                    <label style="padding: 4px 10px; font-size: 0.85rem; background: #4CAF50; color: white; border-radius: 4px; cursor: pointer; display: inline-flex; align-items: center; gap: 4px;">
+                                                        &#128247; 이미지
+                                                        <input type="file" accept="image/*" onchange="insertInlineImageEdit(this, {{ post.id }})" style="display: none;">
+                                                    </label>
+                                                </div>
+                                                <textarea id="pastoral-edit-content-{{ post.id }}" name="content" rows="12" required style="font-family: monospace; font-size: 0.95rem; width: 100%;">{{ post.content }}</textarea>
+                                            </div>
+                                            <div class="form-group">
+                                                <label>이미지 변경 (여러 장, 선택)</label>
+                                                <input type="file" name="images" accept="image/*" multiple>
+                                                <small class="form-hint">새 이미지를 선택하면 기존 이미지가 교체됩니다. 비워두면 유지됩니다.</small>
+                                            </div>
+                                            <div class="form-actions">
+                                                <button type="submit" class="btn btn-primary">저장</button>
+                                                <button type="button" class="btn btn-secondary" onclick="cancelEditPastoral({{ post.id }})">취소</button>
+                                            </div>
+                                        </form>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                        {% else %}
+                        <p class="empty-message">등록된 글이 없습니다.</p>
+                        {% endif %}
+                    </div>
+                </section>
+
+                <!-- News Management Section -->
+                <section class="admin-section">
+                    <h2 class="section-title">교회소식 관리</h2>
+
+                    <!-- Create News Form -->
+                    <div class="admin-card">
+                        <h3>새 소식 작성</h3>
+                        <form method="POST" action="/admin/news/create" enctype="multipart/form-data">
+                            <div class="form-group">
+                                <label for="title">제목</label>
+                                <input type="text" id="title" name="title" required>
+                            </div>
+                            <div class="form-group">
+                                <label for="content">내용</label>
+                                <textarea id="content" name="content" rows="6" required></textarea>
+                            </div>
+                            <div class="form-group">
+                                <label for="news-images">이미지 첨부 (선택, 여러 장 가능)</label>
+                                <input type="file" id="news-images" name="images" accept="image/*" multiple onchange="previewNewsImages(this)">
+                                <small class="form-hint">JPG, PNG 등 이미지를 여러 장 선택할 수 있습니다. 선택 순서대로 표시됩니다.</small>
+                                <div id="news-image-preview" style="display:flex; flex-wrap:wrap; gap:8px; margin-top:10px;"></div>
+                            </div>
+                            <button type="submit" class="btn btn-primary">소식 등록</button>
+                        </form>
+                    </div>
+
+                    <!-- News List -->
+                    <div class="admin-card">
+                        <h3>등록된 소식 목록</h3>
+                        <div class="news-list-admin">
+                            {% if news_list %}
+                            <table class="admin-table">
+                                <thead>
+                                    <tr>
+                                        <th>번호</th>
+                                        <th>제목</th>
+                                        <th>작성자</th>
+                                        <th>작성일</th>
+                                        <th>조회수</th>
+                                        <th>이미지</th>
+                                        <th>관리</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for news in news_list %}
+                                    <tr>
+                                        <td>{{ news.id }}</td>
+                                        <td>{{ news.title }}</td>
+                                        <td>{{ news.author }}</td>
+                                        <td>{{ news.date }}</td>
+                                        <td>{{ news.views }}</td>
+                                        <td>
+                                            {% if news.image_path %}
+                                            <span class="badge badge-success">있음</span>
+                                            {% else %}
+                                            <span class="badge badge-secondary">없음</span>
+                                            {% endif %}
+                                        </td>
+                                        <td>
+                                            <a href="/admin/news/edit/{{ news.id }}" class="btn-edit" style="margin-right:4px;">수정</a>
+                                            <form method="POST" action="/admin/news/delete/{{ news.id }}"
+                                                style="display: inline;">
+                                                <button type="submit" class="btn-delete"
+                                                    onclick="return confirm('정말 삭제하시겠습니까?')">삭제</button>
+                                            </form>
+                                        </td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                            {% else %}
+                            <p class="empty-message">등록된 소식이 없습니다.</p>
+                            {% endif %}
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Church About Management Section -->
+                <section class="admin-section">
+                    <h2 class="section-title">교회소개 관리</h2>
+                    <div class="admin-card">
+                        <form method="POST" action="/admin/about/update">
+                            <div class="form-group">
+                                <label for="vision-title">비전 제목</label>
+                                <input type="text" id="vision-title" name="vision_title"
+                                    value="{{ about.vision_title }}" required>
+                            </div>
+
+                            <div class="form-group">
+                                <label for="vision-content">비전 내용</label>
+                                <textarea id="vision-content" name="vision_content" rows="12"
+                                    required>{{ about.vision_content }}</textarea>
+                            </div>
+
+                            <div class="form-group">
+                                <label for="mission-content">5대 사명 내용</label>
+                                <textarea id="mission-content" name="mission_content" rows="6"
+                                    required>{{ about.mission_content }}</textarea>
+                            </div>
+
+                            <div class="form-group">
+                                <label for="pastoral-direction">목회 방향 내용</label>
+                                <textarea id="pastoral-direction" name="pastoral_direction"
+                                    rows="6">{{ about.pastoral_direction }}</textarea>
+                            </div>
+
+                            <div class="form-group">
+                                <label for="serving-people">섬기는 분들 소개글 (상단 문구)</label>
+                                <textarea id="serving-people" name="serving_people"
+                                    rows="3">{{ about.serving_people }}</textarea>
+                            </div>
+
+                            <button type="submit" class="btn btn-primary">저장</button>
+                        </form>
+                    </div>
+                </section>
+
+                <!-- Members Management Section (섬기는 분들) -->
+                <section class="admin-section">
+                    <h2 class="section-title">섬기는 분들 관리</h2>
+
+                    <div class="admin-card">
+                        <h3>새 멤버 등록</h3>
+                        <form method="POST" action="/admin/member/create" enctype="multipart/form-data">
+                            <div class="form-group">
+                                <label for="member-name">이름</label>
+                                <input type="text" id="member-name" name="name" required>
+                            </div>
+                            <div class="form-group">
+                                <label for="member-role">직분/역할</label>
+                                <input type="text" id="member-role" name="role" required placeholder="예: 담임목사, 부목사, 전도사, 권사 ...">
+                            </div>
+                            <div class="form-group">
+                                <label for="member-bio">소개글</label>
+                                <textarea id="member-bio" name="bio" rows="4" placeholder="간단한 소개를 입력하세요"></textarea>
+                            </div>
+                            <div class="form-group">
+                                <label for="member-photo">사진</label>
+                                <input type="file" id="member-photo" name="photo" accept="image/*">
+                                <small class="form-hint">정사각형 비율 권장 (원형으로 표시됩니다)</small>
+                            </div>
+                            <div class="form-group">
+                                <label for="member-order">표시 순서</label>
+                                <input type="number" id="member-order" name="display_order" value="0" min="0">
+                                <small class="form-hint">숫자가 작을수록 먼저 표시됩니다</small>
+                            </div>
+                            <button type="submit" class="btn btn-primary">멤버 등록</button>
+                        </form>
+                    </div>
+
+                    <div class="admin-card">
+                        <h3>등록된 멤버 목록</h3>
+                        {% if members %}
+                        <table class="admin-table">
+                            <thead>
+                                <tr>
+                                    <th>순서</th>
+                                    <th>사진</th>
+                                    <th>이름</th>
+                                    <th>직분</th>
+                                    <th>관리</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for member in members %}
+                                <tr>
+                                    <td>{{ member.display_order }}</td>
+                                    <td>
+                                        {% if member.photo_path %}
+                                        <img src="{{ member.photo_path }}" alt="{{ member.name }}" style="width: 40px; height: 40px; object-fit: contain;">
+                                        {% else %}
+                                        -
+                                        {% endif %}
+                                    </td>
+                                    <td>{{ member.name }}</td>
+                                    <td>{{ member.role }}</td>
+                                    <td>
+                                        <form method="POST" action="/admin/member/delete/{{ member.id }}" style="display: inline;">
+                                            <button type="submit" class="btn btn-danger btn-sm"
+                                                onclick="return confirm('정말 삭제하시겠습니까?')">삭제</button>
+                                        </form>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                        {% else %}
+                        <p class="empty-message">등록된 멤버가 없습니다.</p>
+                        {% endif %}
+                    </div>
+                </section>
+            </div>
+        </div>
+    </div>
+    <script src="/static/js/admin.js?v=12"></script>
+    <script>
+    function previewNewsImages(input) {
+        const preview = document.getElementById('news-image-preview');
+        preview.innerHTML = '';
+        if (!input.files || input.files.length === 0) return;
+        Array.from(input.files).forEach(function(file, idx) {
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const wrap = document.createElement('div');
+                wrap.style.cssText = 'position:relative; display:inline-block;';
+                const img = document.createElement('img');
+                img.src = e.target.result;
+                img.style.cssText = 'width:100px; height:80px; object-fit:cover; border-radius:6px; border:1px solid #ddd;';
+                const label = document.createElement('div');
+                label.textContent = (idx + 1) + '번째';
+                label.style.cssText = 'text-align:center; font-size:11px; color:#666; margin-top:3px;';
+                wrap.appendChild(img);
+                wrap.appendChild(label);
+                preview.appendChild(wrap);
+            };
+            reader.readAsDataURL(file);
+        });
+    }
+    </script>
+</body>
+
+</html>

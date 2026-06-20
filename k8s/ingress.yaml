@@ -1,0 +1,48 @@
+---
+# 랜딩 페이지: platform.thechurch-plus.org (Cloudflare Origin TLS)
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: church-platform-landing
+  namespace: church-platform
+spec:
+  ingressClassName: traefik
+  rules:
+  - host: platform.thechurch-plus.org
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: church-platform
+            port:
+              number: 80
+  tls:
+  - hosts:
+    - platform.thechurch-plus.org
+    secretName: church-platform-origin-tls
+---
+# 테넌트 서브도메인: *.thechurch-plus.org (Cloudflare Origin TLS)
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: church-platform-tenants
+  namespace: church-platform
+spec:
+  ingressClassName: traefik
+  rules:
+  - host: "*.thechurch-plus.org"
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: church-platform
+            port:
+              number: 80
+  tls:
+  - hosts:
+    - "*.thechurch-plus.org"
+    secretName: church-platform-origin-tls

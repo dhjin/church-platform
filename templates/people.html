@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="{{ t.lang }}">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ t.people_title }} - {{ t.church_name }}</title>
+    <link rel="icon" href="/static/favicon.ico" type="image/x-icon">
+    <meta name="description" content="더하는 교회를 섬기는 사람들을 소개합니다.">
+    <meta property="og:type" content="website">
+    <meta property="og:site_name" content="더하는 교회">
+    <meta property="og:title" content="{{ t.people_title }} - {{ t.church_name }}">
+    <meta property="og:description" content="더하는 교회를 섬기는 사람들을 소개합니다.">
+    <meta property="og:image" content="https://thechurch-plus.org/static/images/og-image.jpg">
+    <meta property="og:url" content="https://thechurch-plus.org/people">
+    <link rel="stylesheet" href="/static/css/style.css?v=26">
+    <style>
+        .people-page {
+            padding: 100px 0 60px 0;
+            min-height: 70vh;
+        }
+
+        .people-intro {
+            max-width: 800px;
+            margin: 0 auto 3rem auto;
+            text-align: center;
+            font-size: 1.1rem;
+            line-height: 1.8;
+            color: var(--text-dark);
+        }
+
+        .members-list {
+            max-width: 900px;
+            margin: 0 auto;
+            display: flex;
+            flex-direction: column;
+            gap: 2rem;
+        }
+
+        .member-card {
+            display: flex;
+            gap: 2rem;
+            background: white;
+            border-radius: 16px;
+            padding: 2rem;
+            box-shadow: var(--shadow);
+            align-items: center;
+            transition: transform 0.3s;
+        }
+
+        .member-card:hover {
+            transform: translateY(-2px);
+        }
+
+        .member-photo {
+            flex-shrink: 0;
+            width: 150px;
+            height: 150px;
+            border-radius: 50%;
+            overflow: hidden;
+            background-color: var(--bg-light);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .member-photo img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        .member-photo .no-photo {
+            font-size: 3rem;
+            color: var(--text-light);
+            opacity: 0.4;
+        }
+
+        .member-info {
+            flex: 1;
+        }
+
+        .member-name {
+            font-size: 1.4rem;
+            font-weight: 700;
+            color: var(--text-dark);
+            margin-bottom: 0.3rem;
+        }
+
+        .member-role {
+            font-size: 1rem;
+            color: var(--primary-color);
+            font-weight: 600;
+            margin-bottom: 0.8rem;
+        }
+
+        .member-bio {
+            font-size: 1rem;
+            line-height: 1.7;
+            color: var(--text-light);
+        }
+
+        .people-empty {
+            text-align: center;
+            padding: 4rem 2rem;
+            color: var(--text-light);
+            font-size: 1.2rem;
+        }
+
+        @media (max-width: 768px) {
+            .member-card {
+                flex-direction: column;
+                text-align: center;
+                padding: 1.5rem;
+            }
+
+            .member-photo {
+                width: 120px;
+                height: 120px;
+            }
+
+            .member-info {
+                text-align: center;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <!-- Header -->
+    <header class="header page-header">
+        <nav class="navbar">
+            <div class="container">
+                <div class="logo">
+                    <h1><a href="{{ lp }}/#home" style="color: inherit; text-decoration: none; display: flex; align-items: center; gap: 8px;"><img src="/static/images/logo.png?v=2" alt="logo" style="height: 36px; width: 36px; object-fit: contain;"> {{ t.church_name }}</a></h1>
+                </div>
+                <button class="mobile-menu-toggle" aria-label="menu">
+                    <span></span>
+                    <span></span>
+                    <span></span>
+                </button>
+                <ul class="nav-menu">
+                    <li><a href="{{ lp }}/#home">{{ t.nav_home }}</a></li>
+                    <li class="nav-item dropdown">
+                        <a href="{{ lp }}/about" class="dropbtn active">{{ t.nav_about }}</a>
+                        <ul class="dropdown-menu">
+                            <li><a href="{{ lp }}/direction">{{ t.nav_direction }}</a></li>
+                            <li><a href="{{ lp }}/about">{{ t.nav_vision }}</a></li>
+                            <li><a href="{{ lp }}/#schedule-news">{{ t.nav_schedule }}</a></li>
+                            <li><a href="{{ lp }}/#contact">{{ t.nav_location }}</a></li>
+                            <li><a href="{{ lp }}/people">{{ t.nav_people }}</a></li>
+                        </ul>
+                    </li>
+                    <li class="nav-item dropdown">
+                        <a href="{{ lp }}/#videos" class="dropbtn">{{ t.nav_videos }}</a>
+                        <ul class="dropdown-menu">
+                            <li><a href="{{ lp }}/#videos?tab=vision">{{ t.nav_church_vision }}</a></li>
+                            <li><a href="{{ lp }}/#videos?tab=sermons">{{ t.nav_sermons }}</a></li>
+                            <li><a href="{{ lp }}/#videos?tab=shorts">{{ t.nav_shorts }}</a></li>
+                            <li><a href="{{ lp }}/#videos?tab=qty">{{ t.nav_qt }}</a></li>
+                        </ul>
+                    </li>
+                    <li><a href="{{ lp }}/pastoral">{{ t.nav_pastoral }}</a></li>
+                    <li><a href="{{ lp }}/#schedule-news">{{ t.nav_worship }}</a></li>
+                    <li><a href="{{ lp }}/#schedule-news">{{ t.nav_news }}</a></li>
+                    <li><a href="{{ lp }}/#contact">{{ t.nav_location }}</a></li>
+                    <li class="lang-switch"><a href="{% if t.lang == 'ko' %}/en/people{% else %}/people{% endif %}">{{ t.other_lang_name }}</a></li>
+                </ul>
+            </div>
+        </nav>
+    </header>
+
+    <section class="people-page">
+        <div class="container">
+            <div class="section-header">
+                <h2>{{ t.people_title }}</h2>
+                <div class="divider"></div>
+            </div>
+
+            {% if intro %}
+            <div class="people-intro">
+                {{ intro | replace('\n', '<br>') | safe }}
+            </div>
+            {% endif %}
+
+            {% if members %}
+            <div class="members-list">
+                {% for member in members %}
+                <div class="member-card">
+                    <div class="member-photo">
+                        {% if member.photo_path %}
+                        <img src="{{ member.photo_path }}" alt="{{ member.name }}">
+                        {% else %}
+                        <div class="no-photo">&#128100;</div>
+                        {% endif %}
+                    </div>
+                    <div class="member-info">
+                        <div class="member-name">{{ member.name }}</div>
+                        <div class="member-role">{{ member.role }}</div>
+                        {% if member.bio %}
+                        <div class="member-bio">{{ member.bio | replace('\n', '<br>') | safe }}</div>
+                        {% endif %}
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <div class="people-empty">
+                <p>{{ t.people_preparing }}</p>
+            </div>
+            {% endif %}
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="footer">
+        <div class="container">
+            <div class="footer-info">
+                <p><strong>[{{ t.denomination }}] {{ t.church_name }}</strong></p>
+                <p>{{ t.pastor_label }}</p>
+                <p>{{ t.footer_address }}</p>
+                <p>{{ t.footer_phone }}</p>
+                <p>{{ t.footer_email }}</p>
+            </div>
+            <div class="footer-bottom">
+                <p>{{ t.footer_copyright | safe }}</p>
+            </div>
+        </div>
+    </footer>
+
+    <script src="/static/js/script.js?v=15"></script>
+</body>
+
+</html>

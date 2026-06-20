@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="{{ t.lang }}">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ t.about_title }} - {{ t.church_name }}</title>
+    <link rel="icon" href="/static/favicon.ico" type="image/x-icon">
+    <meta name="description" content="더하는 교회의 비전과 사명, 핵심 가치를 소개합니다.">
+    <meta property="og:type" content="website">
+    <meta property="og:site_name" content="더하는 교회">
+    <meta property="og:title" content="{{ t.about_title }} - {{ t.church_name }}">
+    <meta property="og:description" content="더하는 교회의 비전과 사명, 핵심 가치를 소개합니다.">
+    <meta property="og:image" content="https://thechurch-plus.org/static/images/og-image.jpg">
+    <meta property="og:url" content="https://thechurch-plus.org/about">
+    <link rel="stylesheet" href="/static/css/style.css?v=26">
+</head>
+
+<body>
+    <!-- Header -->
+    <header class="header">
+        <nav class="navbar">
+            <div class="container">
+                <div class="logo">
+                    <h1><a href="{{ lp }}/#home" style="color: inherit; text-decoration: none; display: flex; align-items: center; gap: 8px;"><img src="/static/images/logo.png?v=2" alt="logo" style="height: 36px; width: 36px; object-fit: contain;"> {{ t.church_name }}</a></h1>
+                </div>
+                <button class="mobile-menu-toggle" aria-label="menu">
+                    <span></span>
+                    <span></span>
+                    <span></span>
+                </button>
+                <ul class="nav-menu">
+                    <li><a href="{{ lp }}/#home">{{ t.nav_home }}</a></li>
+                    <li class="nav-item dropdown">
+                        <a href="{{ lp }}/about" class="dropbtn active">{{ t.nav_about }}</a>
+                        <ul class="dropdown-menu">
+                            <li><a href="{{ lp }}/direction">{{ t.nav_direction }}</a></li>
+                            <li><a href="{{ lp }}/about">{{ t.nav_vision }}</a></li>
+                            <li><a href="{{ lp }}/#schedule-news">{{ t.nav_schedule }}</a></li>
+                            <li><a href="{{ lp }}/#contact">{{ t.nav_location }}</a></li>
+                            <li><a href="{{ lp }}/people">{{ t.nav_people }}</a></li>
+                        </ul>
+                    </li>
+                    <li class="nav-item dropdown">
+                        <a href="{{ lp }}/#videos" class="dropbtn">{{ t.nav_videos }}</a>
+                        <ul class="dropdown-menu">
+                            <li><a href="{{ lp }}/#videos?tab=vision">{{ t.nav_church_vision }}</a></li>
+                            <li><a href="{{ lp }}/#videos?tab=sermons">{{ t.nav_sermons }}</a></li>
+                            <li><a href="{{ lp }}/#videos?tab=shorts">{{ t.nav_shorts }}</a></li>
+                            <li><a href="{{ lp }}/#videos?tab=qty">{{ t.nav_qt }}</a></li>
+                        </ul>
+                    </li>
+                    <li><a href="{{ lp }}/pastoral">{{ t.nav_pastoral }}</a></li>
+                    <li><a href="{{ lp }}/#schedule-news">{{ t.nav_worship }}</a></li>
+                    <li><a href="{{ lp }}/#schedule-news">{{ t.nav_news }}</a></li>
+                    <li><a href="{{ lp }}/#contact">{{ t.nav_location }}</a></li>
+                    <li class="lang-switch"><a href="{% if t.lang == 'ko' %}/en/about{% else %}/about{% endif %}">{{ t.other_lang_name }}</a></li>
+                </ul>
+            </div>
+        </nav>
+    </header>
+
+    <!-- About Content -->
+    <section class="about-page">
+        <div class="container">
+            <div class="section-header">
+                <h1>{{ about.vision_title }}</h1>
+                <div class="divider"></div>
+            </div>
+
+            <div class="about-content-main">
+                <div class="vision-section">
+                    <div class="vision-with-image">
+                        <div class="vision-text">
+                            {{ about.vision_content | replace('\n', '<br>') | safe }}
+                        </div>
+                        <div class="vision-images-stack">
+                            <div class="vision-image">
+                                <img src="/static/images/gods-vision.png" alt="하나님의 비전">
+                            </div>
+                            <div class="vision-image">
+                                <img src="/static/images/mission-structure.png" alt="말씀 기반 공동체 형성을 통한 선교 확산 구조">
+                            </div>
+                            <div class="vision-image">
+                                <img src="/static/images/our-values.png" alt="우리의 가치">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="mission-section">
+                    <h2>{{ t.mission_5_title }}</h2>
+                    <div class="mission-with-image">
+                        <div class="mission-text">
+                            {{ about.mission_content | replace('\n', '<br>') | safe }}
+                        </div>
+                        <div class="mission-image">
+                            <img src="/static/images/our-vision.png" alt="우리의 비전">
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="footer">
+        <div class="container">
+            <div class="footer-content">
+                <div class="footer-section">
+                    <h4>{{ t.church_name }}</h4>
+                    <p>{{ t.denomination }}</p>
+                    <p>{{ t.senior_pastor }}</p>
+                </div>
+                <div class="footer-section">
+                    <h4>{{ t.footer_address_label }}</h4>
+                    <p>{{ t.footer_address }}</p>
+                    <p>{{ t.footer_tel }}</p>
+                </div>
+            </div>
+            <div class="footer-bottom">
+                <p>{{ t.footer_copyright | safe }}</p>
+                <p>{{ t.footer_blessing }}</p>
+            </div>
+        </div>
+    </footer>
+
+    <script src="/static/js/script.js?v=16"></script>
+</body>
+
+</html>

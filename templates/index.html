@@ -1,0 +1,426 @@
+<!DOCTYPE html>
+<html lang="{{ t.lang }}">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ t.church_name_full }}</title>
+    <link rel="icon" href="/static/favicon.ico" type="image/x-icon">
+    <meta name="description" content="더하는 교회에 오신 것을 환영합니다. 말씀과 사랑으로 함께 세워가는 기독교 한국침례회 교회입니다.">
+    <meta property="og:type" content="website">
+    <meta property="og:site_name" content="더하는 교회">
+    <meta property="og:title" content="{{ t.church_name_full }}">
+    <meta property="og:description" content="더하는 교회에 오신 것을 환영합니다. 말씀과 사랑으로 함께 세워가는 기독교 한국침례회 교회입니다.">
+    <meta property="og:image" content="https://thechurch-plus.org/static/images/og-image.jpg">
+    <meta property="og:url" content="https://thechurch-plus.org/">
+    <link rel="stylesheet" href="/static/css/style.css?v=27">
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "Church",
+      "name": "더하는 교회",
+      "alternateName": "Deohaneun Church",
+      "url": "https://thechurch-plus.org",
+      "logo": "https://thechurch-plus.org/static/images/logo.png",
+      "image": "https://thechurch-plus.org/static/images/og-image.jpg",
+      "description": "더하는 교회에 오신 것을 환영합니다. 말씀과 사랑으로 함께 세워가는 기독교 한국침례회 교회입니다.",
+      "denomination": "기독교 한국침례회",
+      "sameAs": [
+        "https://thechurch-plus.org"
+      ]
+    }
+    </script>
+    <script type="text/javascript"
+        src="//dapi.kakao.com/v2/maps/sdk.js?appkey=04a9be7cc4a029e900041f8a88463d27&autoload=false&libraries=services"></script>
+</head>
+
+<body>
+    <!-- Header -->
+    <header class="header">
+        <nav class="navbar">
+            <div class="container">
+                <div class="logo">
+                    <h1><a href="{{ lp }}/#home" style="color: inherit; text-decoration: none; display: flex; align-items: center; gap: 8px;"><img src="/static/images/logo.png?v=2" alt="logo" style="height: 36px; width: 36px; object-fit: contain;"> {{ t.church_name }}</a></h1>
+                </div>
+                <button class="mobile-menu-toggle" aria-label="menu">
+                    <span></span>
+                    <span></span>
+                    <span></span>
+                </button>
+                <ul class="nav-menu">
+                    <li><a href="#home" class="active">{{ t.nav_home }}</a></li>
+                    <li class="nav-item dropdown">
+                        <a href="{{ lp }}/about" class="dropbtn">{{ t.nav_about }}</a>
+                        <ul class="dropdown-menu">
+                            <li><a href="{{ lp }}/direction">{{ t.nav_direction }}</a></li>
+                            <li><a href="{{ lp }}/about">{{ t.nav_vision }}</a></li>
+                            <li><a href="#schedule-news">{{ t.nav_schedule }}</a></li>
+                            <li><a href="#contact">{{ t.nav_location }}</a></li>
+                            <li><a href="{{ lp }}/people">{{ t.nav_people }}</a></li>
+                        </ul>
+                    </li>
+                    <li class="nav-item dropdown">
+                        <a href="#videos" class="dropbtn">{{ t.nav_videos }}</a>
+                        <ul class="dropdown-menu">
+                            <li><a href="#home-top" onclick="event.preventDefault(); document.getElementById('home-top').scrollIntoView({behavior:'smooth'})">{{ t.nav_church_vision }}</a></li>
+                            <li><a href="#videos" onclick="event.preventDefault(); switchVideoTab('sermons'); document.getElementById('videos').scrollIntoView({behavior:'smooth'})">{{ t.nav_sermons }}</a></li>
+                            <li><a href="#videos" onclick="event.preventDefault(); switchVideoTab('shorts'); document.getElementById('videos').scrollIntoView({behavior:'smooth'})">{{ t.nav_shorts }}</a></li>
+                            <li><a href="#videos" onclick="event.preventDefault(); switchVideoTab('qty'); document.getElementById('videos').scrollIntoView({behavior:'smooth'})">{{ t.nav_qt }}</a></li>
+                        </ul>
+                    </li>
+                    <li><a href="{{ lp }}/pastoral">{{ t.nav_pastoral }}</a></li>
+                    <li><a href="#schedule-news">{{ t.nav_worship }}</a></li>
+                    <li><a href="#schedule-news">{{ t.nav_news }}</a></li>
+                    <li><a href="#contact">{{ t.nav_location }}</a></li>
+                    {% if user %}
+                    {% if user.role == 'admin' %}
+                    <li><a href="/admin" class="admin-link">{{ t.nav_admin }}</a></li>
+                    {% endif %}
+                    <li><a href="/logout">{{ t.nav_logout }}</a></li>
+                    {% else %}
+                    <li><a href="{{ lp }}/login" class="login-link">{{ t.nav_login }}</a></li>
+                    {% endif %}
+                    <li class="lang-switch"><a href="{% if t.lang == 'ko' %}/en/{% else %}/{% endif %}">{{ t.other_lang_name }}</a></li>
+                </ul>
+            </div>
+        </nav>
+    </header>
+
+    <!-- Hero Section -->
+    <section id="home" class="hero">
+        <div class="hero-content">
+            <h2 class="hero-title">{{ t.hero_title }}</h2>
+            <p class="hero-subtitle">{{ t.hero_subtitle }}</p>
+            <p class="hero-info">{{ t.hero_info }}</p>
+            <div class="hero-buttons">
+                <a href="#schedule-news" class="btn btn-primary">{{ t.hero_worship_btn }}</a>
+                <a href="{{ lp }}/about" class="btn btn-secondary">{{ t.hero_about_btn }}</a>
+            </div>
+        </div>
+    </section>
+
+    <!-- Vision + Welcome Combined Section -->
+    <section id="home-top" class="home-top-section">
+        <div class="container">
+            <div class="home-top-grid">
+                <!-- Left: Church Vision featured video -->
+                <div class="vision-col">
+                    <div class="vision-label-btn">{{ t.tab_vision }}</div>
+                    {% if visions %}
+                    {% set vision = visions[0] %}
+                    <div class="card sermon-card clickable-card vision-featured-card"
+                        onclick="openVideoModal('{{ vision.youtube_id }}')" style="cursor: pointer;">
+                        {% if vision.youtube_id %}
+                        <div class="video-thumbnail">
+                            <img src="{{ vision.thumbnail }}" alt="{{ vision.title }}"
+                                onerror="this.src='https://img.youtube.com/vi/{{ vision.youtube_id }}/hqdefault.jpg'">
+                            <div class="play-button">▶</div>
+                        </div>
+                        {% endif %}
+                        <div class="card-header">
+                            <h3>{{ vision.title }}</h3>
+                        </div>
+                    </div>
+                    {% endif %}
+                </div>
+
+                <!-- Right: Church Intro -->
+                <div class="welcome-col">
+                    <div class="section-header">
+                        <h2>{{ t.welcome_title }}</h2>
+                        <div class="divider"></div>
+                    </div>
+                    <p class="welcome-text">{{ church_intro }}</p>
+                    <div class="church-info-banner">
+                        <div class="info-item">
+                            <strong>{{ t.info_affiliation }}</strong> {{ t.denomination }}
+                        </div>
+                        <div class="info-item">
+                            <strong>{{ t.info_pastor }}</strong> {{ t.senior_pastor_short }}
+                        </div>
+                        <div class="info-item">
+                            <strong>{{ t.info_location }}</strong> {{ t.info_location_val }}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Videos Section (3 tabs: 최근설교, 오늘의 QT, 숏츠) -->
+    <section id="videos" class="video-section">
+        <div class="container">
+            <div class="video-tabs show-all">
+                <div class="tab-buttons">
+                    <button class="tab-btn" onclick="switchVideoTab('sermons')">{{ t.tab_sermons }}</button>
+                    <button class="tab-btn" onclick="switchVideoTab('qty')">{{ t.tab_qt }}</button>
+                    <button class="tab-btn" onclick="switchVideoTab('shorts')">{{ t.tab_shorts }}</button>
+                </div>
+
+                <!-- Sermons Tab Content -->
+                <div id="tab-sermons" class="tab-content">
+                    <div class="carousel-container">
+                        <button class="carousel-nav prev" aria-label="{{ t.prev_video }}"
+                            onclick="scrollCarousel(this, -1)">❮</button>
+                        <div class="video-grid carousel-track">
+                            {% for sermon in sermons %}
+                            <div class="card sermon-card {% if sermon.youtube_id %}clickable-card{% endif %}" {% if
+                                sermon.youtube_id %}onclick="openVideoModal('{{ sermon.youtube_id }}')"
+                                style="cursor: pointer;" {% endif %}>
+                                {% if sermon.youtube_id %}
+                                <div class="video-thumbnail">
+                                    <img src="{{ sermon.thumbnail }}" alt="{{ sermon.title }}"
+                                        onerror="this.src='https://img.youtube.com/vi/{{ sermon.youtube_id }}/hqdefault.jpg'">
+                                    <div class="play-button">▶</div>
+                                </div>
+                                {% endif %}
+                                <div class="card-header">
+                                    <h3>{{ sermon.title }}</h3>
+                                </div>
+                                <div class="card-body">
+                                    <p class="meta">
+                                        <span class="pastor">👤 {{ sermon.pastor }}</span>
+                                        <span class="date">📅 {{ sermon.date }}</span>
+                                    </p>
+                                    <p class="description">{{ sermon.description }}</p>
+                                </div>
+                            </div>
+                            {% endfor %}
+                        </div>
+                        <button class="carousel-nav next" aria-label="{{ t.next_video }}"
+                            onclick="scrollCarousel(this, 1)">❯</button>
+                    </div>
+                </div>
+
+                <!-- QT Tab Content -->
+                <div id="tab-qty" class="tab-content">
+                    <div class="carousel-container shorts-container">
+                        <button class="carousel-nav prev" aria-label="{{ t.prev_video }}"
+                            onclick="scrollCarousel(this, -1)">❮</button>
+                        <div class="video-grid carousel-track shorts-track">
+                            {% for qty in qtys %}
+                            <div class="shorts-card qty-card" onclick="openVideoModal('{{ qty.youtube_id }}')"
+                                style="cursor: pointer;">
+                                {% if qty.youtube_id %}
+                                <div class="shorts-thumbnail">
+                                    <img src="{{ qty.thumbnail }}" alt="{{ qty.title }}"
+                                        onerror="this.src='https://img.youtube.com/vi/{{ qty.youtube_id }}/hqdefault.jpg'">
+                                    <div class="shorts-play-button">▶</div>
+                                    <div class="shorts-badge qty-badge">QT</div>
+                                </div>
+                                {% endif %}
+                                <div class="shorts-title">
+                                    <h4>{{ qty.title }}</h4>
+                                </div>
+                            </div>
+                            {% endfor %}
+                        </div>
+                        <button class="carousel-nav next" aria-label="{{ t.next_video }}"
+                            onclick="scrollCarousel(this, 1)">❯</button>
+                    </div>
+                </div>
+
+                <!-- Shorts Tab Content -->
+                <div id="tab-shorts" class="tab-content">
+                    <div class="carousel-container shorts-container">
+                        <button class="carousel-nav prev" aria-label="{{ t.prev_video }}"
+                            onclick="scrollCarousel(this, -1)">❮</button>
+                        <div class="video-grid carousel-track shorts-track">
+                            {% for short in shorts %}
+                            <div class="shorts-card" onclick="openVideoModal('{{ short.youtube_id }}', true)"
+                                style="cursor: pointer;">
+                                {% if short.youtube_id %}
+                                <div class="shorts-thumbnail">
+                                    <img src="{{ short.thumbnail }}" alt="{{ short.title }}"
+                                        onerror="this.src='https://img.youtube.com/vi/{{ short.youtube_id }}/hqdefault.jpg'">
+                                    <div class="shorts-play-button">▶</div>
+                                    <div class="shorts-badge">Shorts</div>
+                                </div>
+                                {% endif %}
+                                <div class="shorts-title">
+                                    <h4>{{ short.title }}</h4>
+                                </div>
+                            </div>
+                            {% endfor %}
+                        </div>
+                        <button class="carousel-nav next" aria-label="{{ t.next_video }}"
+                            onclick="scrollCarousel(this, 1)">❯</button>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </section>
+
+    <!-- Worship Schedule and News Section -->
+    <section id="schedule-news" class="schedule-news-section">
+        <div class="container">
+            <div class="schedule-news-grid">
+                <!-- Left: Consolidated Worship Schedule -->
+                <div class="schedule-column">
+                    <div class="section-header">
+                        <h2>{{ t.schedule_title }}</h2>
+                        <div class="divider"></div>
+                    </div>
+                    <div class="consolidated-schedule">
+                        <div class="schedule-list">
+                            <div class="schedule-row">
+                                <span class="schedule-name">{{ t.sunday_worship }}</span>
+                                <span class="schedule-time">{{ t.sunday_time }}</span>
+                            </div>
+                            <div class="schedule-row">
+                                <span class="schedule-name">{{ t.sunday_study }}</span>
+                                <span class="schedule-time">{{ t.sunday_study_time }}</span>
+                            </div>
+                            <div class="schedule-row">
+                                <span class="schedule-name">{{ t.wed_worship }}</span>
+                                <span class="schedule-time">{{ t.wed_time }}</span>
+                            </div>
+                            <div class="schedule-row">
+                                <span class="schedule-name">{{ t.fri_prayer }}</span>
+                                <span class="schedule-time">{{ t.fri_time }}</span>
+                            </div>
+                            <div class="schedule-row">
+                                <span class="schedule-name">{{ t.morning_worship }}</span>
+                                <span class="schedule-time">{{ t.morning_time }}</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Right: Church News -->
+                <div class="news-column">
+                    <div class="section-header">
+                        <h2>{{ t.news_title }}</h2>
+                        <div class="divider"></div>
+                    </div>
+                    <div class="news-board">
+                        <div class="news-container">
+                            <!-- Header -->
+                            <div class="news-header">
+                                <div class="news-cell news-num">{{ t.news_col_num }}</div>
+                                <div class="news-cell news-subject">{{ t.news_col_title }}</div>
+                                <div class="news-cell news-date">{{ t.news_col_date }}</div>
+                                <div class="news-cell news-views">{{ t.news_col_views }}</div>
+                            </div>
+                            <!-- Body -->
+                            <div class="news-body">
+                                {% for news in news_list %}
+                                <div class="news-item" onclick="window.location='{{ lp }}/news/{{ news.id }}'"
+                                    style="cursor: pointer;">
+                                    <div class="news-cell news-num">{{ news.id }}</div>
+                                    <div class="news-cell news-subject">{{ news.title }}</div>
+                                    <div class="news-cell news-date">{{ news.date }}</div>
+                                    <div class="news-cell news-views">{{ news.views }}</div>
+                                </div>
+                                {% endfor %}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Contact Section -->
+    <section id="contact" class="contact">
+        <div class="container">
+            <div class="section-header">
+                <h2>{{ t.contact_title }}</h2>
+                <div class="divider"></div>
+            </div>
+
+            <!-- Location Map -->
+            <div class="map-section">
+                <div class="map-container">
+                    <div id="kakaoMap" style="width:100%;height:420px;border-radius:12px;overflow:hidden;"></div>
+                </div>
+                <div class="map-buttons">
+                    <a href="https://map.naver.com/p/search/대전시%20유성구%20학하동%20755-6" target="_blank"
+                        class="btn btn-naver">
+                        {{ t.naver_map }}
+                    </a>
+                    <a href="https://map.kakao.com/link/search/대전시%20유성구%20학하동%20755-6" target="_blank"
+                        class="btn btn-kakao">
+                        {{ t.kakao_map }}
+                    </a>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="footer">
+        <div class="container">
+            <div class="footer-content">
+                <div class="footer-section">
+                    <h4>{{ t.church_name }}</h4>
+                    <p>{{ t.denomination }}</p>
+                    <p>{{ t.senior_pastor }}</p>
+                </div>
+                <div class="footer-section">
+                    <h4>{{ t.footer_address_label }}</h4>
+                    <p>{{ t.footer_address }}</p>
+                    <p>{{ t.footer_tel }}</p>
+                </div>
+            </div>
+            <div class="footer-bottom">
+                <p>{{ t.footer_copyright | safe }}</p>
+                <p>{{ t.footer_blessing }}</p>
+            </div>
+        </div>
+    </footer>
+
+    <!-- YouTube Video Modal -->
+    <div id="videoModal" class="video-modal" onclick="closeVideoModal(event)">
+        <div class="video-modal-content" id="videoModalContent">
+            <span class="video-modal-close" onclick="closeVideoModal(event)">&times;</span>
+            <div class="video-container" id="videoContainer">
+                <iframe id="videoIframe" src="" frameborder="0"
+                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                    allowfullscreen></iframe>
+            </div>
+        </div>
+    </div>
+
+    <script src="/static/js/script.js?v=16"></script>
+    <script>
+        try {
+            if (typeof kakao !== 'undefined' && kakao.maps) {
+                kakao.maps.load(function () {
+                    var container = document.getElementById('kakaoMap');
+                    if (!container) return;
+                    var options = {
+                        center: new kakao.maps.LatLng(36.3204, 127.3397),
+                        level: 4
+                    };
+                    var map = new kakao.maps.Map(container, options);
+                    var geocoder = new kakao.maps.services.Geocoder();
+                    geocoder.addressSearch('대전 유성구 학하동 755-6', function (result, status) {
+                        if (status === kakao.maps.services.Status.OK) {
+                            var coords = new kakao.maps.LatLng(result[0].y, result[0].x);
+                            var marker = new kakao.maps.Marker({ map: map, position: coords });
+                            var infowindow = new kakao.maps.InfoWindow({
+                                content: '<div style="padding:8px 12px;font-size:13px;font-weight:600;color:#1a3a5c;white-space:nowrap;">📍 {{ t.church_name }}<br><span style="font-weight:400;font-size:12px;color:#666;">{{ t.footer_address }}</span></div>'
+                            });
+                            infowindow.open(map, marker);
+                            map.setCenter(coords);
+                        } else {
+                            var fallback = new kakao.maps.LatLng(36.3620, 127.3560);
+                            var marker = new kakao.maps.Marker({ map: map, position: fallback });
+                            var infowindow = new kakao.maps.InfoWindow({
+                                content: '<div style="padding:8px 12px;font-size:13px;font-weight:600;color:#1a3a5c;">📍 {{ t.church_name }}<br><span style="font-weight:400;font-size:12px;color:#666;">{{ t.footer_address }}</span></div>'
+                            });
+                            infowindow.open(map, marker);
+                            map.setCenter(fallback);
+                        }
+                    });
+                });
+            }
+        } catch (e) {
+            console.warn('Map init error:', e);
+        }
+    </script>
+</body>
+
+</html>

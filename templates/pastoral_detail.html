@@ -1,0 +1,346 @@
+<!DOCTYPE html>
+<html lang="{{ t.lang }}">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ post.title }} - {{ t.pastoral_title }} - {{ t.church_name }}</title>
+    <link rel="icon" href="/static/favicon.ico" type="image/x-icon">
+    <meta name="description" content="{{ post.title }} - 더하는 교회 목회 칼럼">
+    <meta property="og:type" content="article">
+    <meta property="og:site_name" content="더하는 교회">
+    <meta property="og:title" content="{{ post.title }} - {{ t.church_name }}">
+    <meta property="og:description" content="{{ post.title }} - 더하는 교회 목회 칼럼">
+    <meta property="og:image" content="https://thechurch-plus.org/static/images/og-image.jpg">
+    <meta property="og:url" content="https://thechurch-plus.org/pastoral/{{ post.id }}">
+    <link rel="stylesheet" href="/static/css/style.css?v=26">
+    <style>
+        .post-detail-container {
+            max-width: 800px;
+            margin: 80px auto;
+            padding: 20px;
+        }
+
+        .post-detail-header {
+            border-bottom: 2px solid var(--border-color);
+            padding-bottom: 1.5rem;
+            margin-bottom: 2rem;
+        }
+
+        .post-detail-title {
+            font-size: 2rem;
+            color: var(--text-dark);
+            margin-bottom: 1rem;
+        }
+
+        .post-detail-meta {
+            display: flex;
+            gap: 1.5rem;
+            color: var(--text-light);
+            font-size: 0.95rem;
+            flex-wrap: wrap;
+        }
+
+        .post-detail-content {
+            line-height: 1.8;
+            font-size: 1.1rem;
+            color: var(--text-dark);
+            margin-bottom: 2rem;
+        }
+
+        .post-detail-image {
+            margin: 2rem 0;
+            text-align: center;
+        }
+
+        .post-detail-image img {
+            max-width: 100%;
+            height: auto;
+            border-radius: 12px;
+            box-shadow: var(--shadow);
+        }
+
+        .back-button {
+            display: inline-block;
+            padding: 12px 24px;
+            background-color: var(--primary-color);
+            color: white;
+            text-decoration: none;
+            border-radius: 8px;
+            transition: all 0.3s;
+        }
+
+        .back-button:hover {
+            background-color: var(--secondary-color);
+            transform: translateY(-2px);
+        }
+
+        /* Comments */
+        .comments-section {
+            margin-top: 3rem;
+            padding-top: 2rem;
+            border-top: 2px solid var(--border-color);
+        }
+
+        .comments-title {
+            font-size: 1.3rem;
+            color: var(--text-dark);
+            margin-bottom: 1.5rem;
+        }
+
+        .comment-item {
+            padding: 1rem;
+            border-bottom: 1px solid #eee;
+        }
+
+        .comment-header {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            margin-bottom: 0.5rem;
+            font-size: 0.9rem;
+        }
+
+        .comment-author {
+            font-weight: 600;
+            color: var(--primary-color);
+        }
+
+        .comment-date {
+            color: var(--text-light);
+        }
+
+        .comment-content {
+            line-height: 1.6;
+            color: var(--text-dark);
+        }
+
+        .comment-delete-btn {
+            background: none;
+            border: none;
+            color: #dc3545;
+            cursor: pointer;
+            font-size: 0.85rem;
+            padding: 2px 8px;
+            margin-left: auto;
+        }
+
+        .comment-delete-btn:hover {
+            text-decoration: underline;
+        }
+
+        .comment-form {
+            margin-top: 1.5rem;
+        }
+
+        .comment-form textarea {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid var(--border-color);
+            border-radius: 8px;
+            font-size: 1rem;
+            font-family: inherit;
+            resize: vertical;
+            margin-bottom: 1rem;
+            box-sizing: border-box;
+        }
+
+        .comment-form textarea:focus {
+            outline: none;
+            border-color: var(--primary-color);
+        }
+
+        .comment-submit-btn {
+            padding: 10px 24px;
+            background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.3s, box-shadow 0.3s;
+        }
+
+        .comment-submit-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+        }
+
+        .comment-login-prompt {
+            text-align: center;
+            padding: 1.5rem;
+            background-color: var(--bg-light);
+            border-radius: 8px;
+            margin-top: 1.5rem;
+        }
+
+        .comment-login-prompt a {
+            color: var(--primary-color);
+            font-weight: 600;
+            text-decoration: none;
+        }
+
+        .comment-login-prompt a:hover {
+            text-decoration: underline;
+        }
+
+        .no-comments {
+            text-align: center;
+            color: var(--text-light);
+            padding: 1rem;
+        }
+
+        @media (max-width: 768px) {
+            .post-detail-title {
+                font-size: 1.5rem;
+            }
+            .post-detail-content {
+                font-size: 1rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- Header -->
+    <header class="header">
+        <nav class="navbar">
+            <div class="container">
+                <div class="logo">
+                    <h1><a href="{{ lp }}/#home" style="color: inherit; text-decoration: none; display: flex; align-items: center; gap: 8px;"><img src="/static/images/logo.png?v=2" alt="logo" style="height: 36px; width: 36px; object-fit: contain;"> {{ t.church_name }}</a></h1>
+                </div>
+                <button class="mobile-menu-toggle" aria-label="menu">
+                    <span></span>
+                    <span></span>
+                    <span></span>
+                </button>
+                <ul class="nav-menu">
+                    <li><a href="{{ lp }}/#home">{{ t.nav_home }}</a></li>
+                    <li class="nav-item dropdown">
+                        <a href="{{ lp }}/about" class="dropbtn">{{ t.nav_about }}</a>
+                        <ul class="dropdown-menu">
+                            <li><a href="{{ lp }}/direction">{{ t.nav_direction }}</a></li>
+                            <li><a href="{{ lp }}/about">{{ t.nav_vision }}</a></li>
+                            <li><a href="{{ lp }}/#schedule-news">{{ t.nav_schedule }}</a></li>
+                            <li><a href="{{ lp }}/#contact">{{ t.nav_location }}</a></li>
+                            <li><a href="{{ lp }}/people">{{ t.nav_people }}</a></li>
+                        </ul>
+                    </li>
+                    <li class="nav-item dropdown">
+                        <a href="{{ lp }}/#videos" class="dropbtn">{{ t.nav_videos }}</a>
+                        <ul class="dropdown-menu">
+                            <li><a href="{{ lp }}/#videos?tab=vision">{{ t.nav_church_vision }}</a></li>
+                            <li><a href="{{ lp }}/#videos?tab=sermons">{{ t.nav_sermons }}</a></li>
+                            <li><a href="{{ lp }}/#videos?tab=shorts">{{ t.nav_shorts }}</a></li>
+                            <li><a href="{{ lp }}/#videos?tab=qty">{{ t.nav_qt }}</a></li>
+                        </ul>
+                    </li>
+                    <li><a href="{{ lp }}/pastoral" class="active">{{ t.nav_pastoral }}</a></li>
+                    <li><a href="{{ lp }}/#schedule-news">{{ t.nav_worship }}</a></li>
+                    <li><a href="{{ lp }}/#schedule-news">{{ t.nav_news }}</a></li>
+                    <li><a href="{{ lp }}/#contact">{{ t.nav_location }}</a></li>
+                    {% if user %}
+                    {% if user.role == 'admin' %}
+                    <li><a href="/admin">{{ t.nav_admin }}</a></li>
+                    {% endif %}
+                    <li><a href="/logout">{{ t.nav_logout }}</a></li>
+                    {% else %}
+                    <li><a href="{{ lp }}/login" class="login-link">{{ t.nav_login }}</a></li>
+                    {% endif %}
+                    <li class="lang-switch"><a href="{% if t.lang == 'ko' %}/en/pastoral/{{ post.id }}{% else %}/pastoral/{{ post.id }}{% endif %}">{{ t.other_lang_name }}</a></li>
+                </ul>
+            </div>
+        </nav>
+    </header>
+
+    <div class="post-detail-container">
+        <div class="post-detail-header">
+            <h1 class="post-detail-title">{{ post.title }}</h1>
+            <div class="post-detail-meta">
+                <span>{{ t.pastoral_author_label | safe }} {{ post.author or t.pastoral_default_author }}</span>
+                <span>{{ t.pastoral_date_label | safe }} {{ post.created_at }}</span>
+                <span>{{ t.pastoral_views_label | safe }} {{ post.views }}</span>
+            </div>
+        </div>
+
+        {% if pastoral_images %}
+        <div class="post-detail-images">
+            {% for img_src in pastoral_images %}
+            <div class="post-detail-image">
+                <img src="{{ img_src }}" alt="{{ post.title }} 이미지 {{ loop.index }}">
+            </div>
+            {% endfor %}
+        </div>
+        {% endif %}
+
+        <div class="post-detail-content">
+            {{ post.content | replace('\n', '<br>') | safe }}
+        </div>
+
+        <div>
+            <a href="{{ lp }}/pastoral" class="back-button">{{ t.pastoral_back | safe }}</a>
+        </div>
+
+        <!-- Comments Section -->
+        <div class="comments-section">
+            <h3 class="comments-title">{{ t.comments_title }} ({{ comments|length }})</h3>
+
+            {% if comments %}
+            <div class="comments-list">
+                {% for comment in comments %}
+                <div class="comment-item">
+                    <div class="comment-header">
+                        <span class="comment-author">{{ comment.name or comment.username }}</span>
+                        <span class="comment-date">{{ comment.created_at[:16].replace('T', ' ') }}</span>
+                        {% if user and (user.id == comment.user_id or user.role == 'admin') %}
+                        <form method="POST" action="/comment/{{ comment.id }}/delete?redirect={{ lp }}/pastoral/{{ post.id }}"
+                            style="display: inline; margin-left: auto;">
+                            <button type="submit" class="comment-delete-btn"
+                                onclick="return confirm('{{ t.comment_delete_confirm }}')">{{ t.comment_delete }}</button>
+                        </form>
+                        {% endif %}
+                    </div>
+                    <div class="comment-content">{{ comment.content }}</div>
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <p class="no-comments">{{ t.no_comments }}</p>
+            {% endif %}
+
+            {% if user %}
+            <form method="POST" action="/pastoral/{{ post.id }}/comment" class="comment-form">
+                <textarea name="content" rows="3" placeholder="{{ t.comment_placeholder }}" required></textarea>
+                <button type="submit" class="comment-submit-btn">{{ t.comment_submit }}</button>
+            </form>
+            {% else %}
+            <div class="comment-login-prompt">
+                <p>{{ t.comment_login_prompt }} <a href="{{ lp }}/login">{{ t.comment_login_link }}</a> {{ t.comment_login_suffix }}</p>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <footer class="footer">
+        <div class="container">
+            <div class="footer-content">
+                <div class="footer-section">
+                    <h4>{{ t.church_name }}</h4>
+                    <p>{{ t.denomination }}</p>
+                    <p>{{ t.senior_pastor }}</p>
+                </div>
+                <div class="footer-section">
+                    <h4>{{ t.footer_address_label }}</h4>
+                    <p>{{ t.footer_address }}</p>
+                    <p>{{ t.footer_tel }}</p>
+                </div>
+            </div>
+            <div class="footer-bottom">
+                <p>{{ t.footer_copyright | safe }}</p>
+                <p>{{ t.footer_blessing }}</p>
+            </div>
+        </div>
+    </footer>
+
+    <script src="/static/js/script.js?v=15"></script>
+</body>
+</html>

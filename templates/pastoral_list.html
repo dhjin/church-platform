@@ -1,0 +1,467 @@
+<!DOCTYPE html>
+<html lang="{{ t.lang }}">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ t.pastoral_title }} - {{ t.church_name }}</title>
+    <link rel="icon" href="/static/favicon.ico" type="image/x-icon">
+    <meta name="description" content="더하는 교회 목회 칼럼입니다. 말씀을 통한 묵상과 삶의 이야기를 나눕니다.">
+    <meta property="og:type" content="website">
+    <meta property="og:site_name" content="더하는 교회">
+    <meta property="og:title" content="{{ t.pastoral_title }} - {{ t.church_name }}">
+    <meta property="og:description" content="더하는 교회 목회 칼럼입니다. 말씀을 통한 묵상과 삶의 이야기를 나눕니다.">
+    <meta property="og:image" content="https://thechurch-plus.org/static/images/og-image.jpg">
+    <meta property="og:url" content="https://thechurch-plus.org/pastoral">
+    <link rel="stylesheet" href="/static/css/style.css?v=26">
+    <style>
+        .pastoral-page {
+            padding: 100px 0 60px 0;
+            min-height: 70vh;
+        }
+
+        .pastoral-header {
+            text-align: center;
+            margin-bottom: 1.5rem;
+        }
+
+        .pastoral-header h2 {
+            font-size: 2.2rem;
+            color: var(--text-dark);
+            margin-bottom: 0.5rem;
+        }
+
+        .pastoral-header p {
+            color: var(--text-light);
+            font-size: 1.1rem;
+        }
+
+        /* Search */
+        .search-bar {
+            max-width: 500px;
+            margin: 0 auto 2rem auto;
+            display: flex;
+            gap: 8px;
+        }
+
+        .search-bar input {
+            flex: 1;
+            padding: 10px 16px;
+            border: 2px solid var(--border-color);
+            border-radius: 8px;
+            font-size: 1rem;
+            transition: border-color 0.3s;
+        }
+
+        .search-bar input:focus {
+            outline: none;
+            border-color: var(--primary-color);
+        }
+
+        .search-bar button {
+            padding: 10px 20px;
+            background: var(--primary-color);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background 0.3s;
+            white-space: nowrap;
+        }
+
+        .search-bar button:hover {
+            background: var(--secondary-color);
+        }
+
+        .search-info {
+            text-align: center;
+            margin-bottom: 1rem;
+            color: var(--text-light);
+            font-size: 0.95rem;
+        }
+
+        .search-info a {
+            color: var(--primary-color);
+            text-decoration: none;
+            font-weight: 600;
+        }
+
+        /* List */
+        .post-list {
+            max-width: 900px;
+            margin: 0 auto;
+        }
+
+        .post-list-header {
+            display: flex;
+            padding: 12px 16px;
+            background: var(--primary-color);
+            color: white;
+            font-weight: 600;
+            font-size: 0.9rem;
+            border-radius: 8px 8px 0 0;
+        }
+
+        .post-list-item {
+            display: flex;
+            align-items: center;
+            padding: 12px 16px;
+            border-bottom: 1px solid #eee;
+            text-decoration: none;
+            color: inherit;
+            transition: background 0.2s;
+        }
+
+        .post-list-item:hover {
+            background-color: var(--bg-light);
+        }
+
+        .post-thumb {
+            flex-shrink: 0;
+            width: 60px;
+            height: 60px;
+            border-radius: 8px;
+            overflow: hidden;
+            background-color: var(--bg-light);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-right: 16px;
+        }
+
+        .post-thumb img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        .post-thumb .no-thumb {
+            font-size: 1.5rem;
+            color: var(--text-light);
+            opacity: 0.3;
+        }
+
+        .post-title-col {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .post-title-col h4 {
+            font-size: 1rem;
+            color: var(--text-dark);
+            margin: 0 0 4px 0;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .post-title-col .post-excerpt {
+            font-size: 0.85rem;
+            color: var(--text-light);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            max-width: 500px;
+        }
+
+        .post-date-col {
+            flex-shrink: 0;
+            width: 100px;
+            text-align: center;
+            font-size: 0.9rem;
+            color: var(--text-light);
+        }
+
+        .post-author-col {
+            flex-shrink: 0;
+            width: 80px;
+            text-align: center;
+            font-size: 0.9rem;
+            color: var(--text-light);
+        }
+
+        .post-views-col {
+            flex-shrink: 0;
+            width: 60px;
+            text-align: center;
+            font-size: 0.85rem;
+            color: var(--text-light);
+        }
+
+        .col-thumb { width: 76px; flex-shrink: 0; }
+        .col-title { flex: 1; }
+        .col-date { width: 100px; text-align: center; flex-shrink: 0; }
+        .col-author { width: 80px; text-align: center; flex-shrink: 0; }
+        .col-views { width: 60px; text-align: center; flex-shrink: 0; }
+
+        /* Pagination */
+        .pagination {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 8px;
+            margin-top: 2rem;
+            flex-wrap: wrap;
+        }
+
+        .pagination a, .pagination span {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            min-width: 36px;
+            height: 36px;
+            padding: 0 10px;
+            border-radius: 8px;
+            font-size: 0.95rem;
+            text-decoration: none;
+            transition: all 0.2s;
+        }
+
+        .pagination a {
+            color: var(--text-dark);
+            border: 1px solid var(--border-color);
+            background: white;
+        }
+
+        .pagination a:hover {
+            background: var(--primary-color);
+            color: white;
+            border-color: var(--primary-color);
+        }
+
+        .pagination .current {
+            background: var(--primary-color);
+            color: white;
+            border: 1px solid var(--primary-color);
+            font-weight: 700;
+        }
+
+        .pagination .disabled {
+            color: #ccc;
+            border: 1px solid #eee;
+            cursor: default;
+            pointer-events: none;
+        }
+
+        .pastoral-empty {
+            text-align: center;
+            padding: 4rem 2rem;
+            color: var(--text-light);
+        }
+
+        .pastoral-empty p {
+            font-size: 1.2rem;
+        }
+
+        @media (max-width: 768px) {
+            .pastoral-header h2 {
+                font-size: 1.6rem;
+            }
+
+            .post-list-header {
+                display: none;
+            }
+
+            .post-list-item {
+                flex-wrap: wrap;
+                gap: 4px;
+            }
+
+            .post-thumb {
+                width: 50px;
+                height: 50px;
+                margin-right: 12px;
+            }
+
+            .post-title-col {
+                flex: 1;
+                min-width: calc(100% - 74px);
+            }
+
+            .post-title-col .post-excerpt {
+                display: none;
+            }
+
+            .post-date-col, .post-author-col, .post-views-col {
+                display: none;
+            }
+
+            .post-title-col h4 {
+                font-size: 0.95rem;
+            }
+
+            .post-title-col::after {
+                content: attr(data-meta);
+                display: block;
+                font-size: 0.8rem;
+                color: var(--text-light);
+                margin-top: 2px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- Header -->
+    <header class="header">
+        <nav class="navbar">
+            <div class="container">
+                <div class="logo">
+                    <h1><a href="{{ lp }}/#home" style="color: inherit; text-decoration: none; display: flex; align-items: center; gap: 8px;"><img src="/static/images/logo.png?v=2" alt="logo" style="height: 36px; width: 36px; object-fit: contain;"> {{ t.church_name }}</a></h1>
+                </div>
+                <button class="mobile-menu-toggle" aria-label="menu">
+                    <span></span>
+                    <span></span>
+                    <span></span>
+                </button>
+                <ul class="nav-menu">
+                    <li><a href="{{ lp }}/#home">{{ t.nav_home }}</a></li>
+                    <li class="nav-item dropdown">
+                        <a href="{{ lp }}/about" class="dropbtn">{{ t.nav_about }}</a>
+                        <ul class="dropdown-menu">
+                            <li><a href="{{ lp }}/direction">{{ t.nav_direction }}</a></li>
+                            <li><a href="{{ lp }}/about">{{ t.nav_vision }}</a></li>
+                            <li><a href="{{ lp }}/#schedule-news">{{ t.nav_schedule }}</a></li>
+                            <li><a href="{{ lp }}/#contact">{{ t.nav_location }}</a></li>
+                            <li><a href="{{ lp }}/people">{{ t.nav_people }}</a></li>
+                        </ul>
+                    </li>
+                    <li class="nav-item dropdown">
+                        <a href="{{ lp }}/#videos" class="dropbtn">{{ t.nav_videos }}</a>
+                        <ul class="dropdown-menu">
+                            <li><a href="{{ lp }}/#videos?tab=vision">{{ t.nav_church_vision }}</a></li>
+                            <li><a href="{{ lp }}/#videos?tab=sermons">{{ t.nav_sermons }}</a></li>
+                            <li><a href="{{ lp }}/#videos?tab=shorts">{{ t.nav_shorts }}</a></li>
+                            <li><a href="{{ lp }}/#videos?tab=qty">{{ t.nav_qt }}</a></li>
+                        </ul>
+                    </li>
+                    <li><a href="{{ lp }}/pastoral" class="active">{{ t.nav_pastoral }}</a></li>
+                    <li><a href="{{ lp }}/#schedule-news">{{ t.nav_worship }}</a></li>
+                    <li><a href="{{ lp }}/#schedule-news">{{ t.nav_news }}</a></li>
+                    <li><a href="{{ lp }}/#contact">{{ t.nav_location }}</a></li>
+                    {% if user %}
+                    {% if user.role == 'admin' %}
+                    <li><a href="/admin">{{ t.nav_admin }}</a></li>
+                    {% endif %}
+                    <li><a href="/logout">{{ t.nav_logout }}</a></li>
+                    {% else %}
+                    <li><a href="{{ lp }}/login" class="login-link">{{ t.nav_login }}</a></li>
+                    {% endif %}
+                    <li class="lang-switch"><a href="{% if t.lang == 'ko' %}/en/pastoral{% else %}/pastoral{% endif %}{% if q %}?q={{ q }}{% endif %}">{{ t.other_lang_name }}</a></li>
+                </ul>
+            </div>
+        </nav>
+    </header>
+
+    <section class="pastoral-page">
+        <div class="container">
+            <div class="pastoral-header">
+                <h2>{{ t.pastoral_title }}</h2>
+                <p>{{ t.pastoral_subtitle }}</p>
+            </div>
+
+            <!-- Search Bar -->
+            <form class="search-bar" method="GET" action="{{ lp }}/pastoral">
+                <input type="text" name="q" value="{{ q }}" placeholder="{{ t.pastoral_search_placeholder }}">
+                <button type="submit">{{ t.pastoral_search_btn }}</button>
+            </form>
+
+            {% if q %}
+            <div class="search-info">
+                "{{ q }}" {{ t.pastoral_search_result }}: {{ total }}{% if t.lang == 'ko' %}건{% endif %} &nbsp;|&nbsp; <a href="{{ lp }}/pastoral">{{ t.pastoral_all_list }}</a>
+            </div>
+            {% endif %}
+
+            {% if posts %}
+            <div class="post-list">
+                <!-- List Header (desktop) -->
+                <div class="post-list-header">
+                    <div class="col-thumb"></div>
+                    <div class="col-title">{{ t.pastoral_col_title }}</div>
+                    <div class="col-date">{{ t.pastoral_col_date }}</div>
+                    <div class="col-author">{{ t.pastoral_col_author }}</div>
+                    <div class="col-views">{{ t.pastoral_col_views }}</div>
+                </div>
+
+                <!-- List Items -->
+                {% for post in posts %}
+                <a href="{{ lp }}/pastoral/{{ post.id }}" class="post-list-item">
+                    <div class="post-thumb">
+                        <img src="{{ post.image_path or '/static/images/logo.png' }}" alt="{{ post.title }}">
+                    </div>
+                    <div class="post-title-col" data-meta="{{ post.created_at }} | {{ post.author or t.pastoral_default_author }} | {{ t.pastoral_col_views }} {{ post.views }}">
+                        <h4>{{ post.title }}</h4>
+                        <div class="post-excerpt">{{ post.content|striptags|truncate(80, True, '...') }}</div>
+                    </div>
+                    <div class="post-date-col">{{ post.created_at }}</div>
+                    <div class="post-author-col">{{ post.author or t.pastoral_default_author }}</div>
+                    <div class="post-views-col">{{ post.views }}</div>
+                </a>
+                {% endfor %}
+            </div>
+
+            <!-- Pagination -->
+            {% if total_pages > 1 %}
+            <div class="pagination">
+                {% if page > 1 %}
+                <a href="{{ lp }}/pastoral?page={{ page - 1 }}{% if q %}&q={{ q }}{% endif %}">{{ t.pastoral_prev | safe }}</a>
+                {% else %}
+                <span class="disabled">{{ t.pastoral_prev | safe }}</span>
+                {% endif %}
+
+                {% for p in range(1, total_pages + 1) %}
+                    {% if p == page %}
+                    <span class="current">{{ p }}</span>
+                    {% elif p <= 3 or p > total_pages - 2 or (p >= page - 1 and p <= page + 1) %}
+                    <a href="{{ lp }}/pastoral?page={{ p }}{% if q %}&q={{ q }}{% endif %}">{{ p }}</a>
+                    {% elif p == 4 and page > 5 %}
+                    <span>...</span>
+                    {% elif p == total_pages - 2 and page < total_pages - 4 %}
+                    <span>...</span>
+                    {% endif %}
+                {% endfor %}
+
+                {% if page < total_pages %}
+                <a href="{{ lp }}/pastoral?page={{ page + 1 }}{% if q %}&q={{ q }}{% endif %}">{{ t.pastoral_next | safe }}</a>
+                {% else %}
+                <span class="disabled">{{ t.pastoral_next | safe }}</span>
+                {% endif %}
+            </div>
+            {% endif %}
+
+            {% else %}
+            <div class="pastoral-empty">
+                {% if q %}
+                <p>"{{ q }}" {{ t.pastoral_no_result }}</p>
+                {% else %}
+                <p>{{ t.pastoral_empty }}</p>
+                {% endif %}
+            </div>
+            {% endif %}
+        </div>
+    </section>
+
+    <footer class="footer">
+        <div class="container">
+            <div class="footer-content">
+                <div class="footer-section">
+                    <h4>{{ t.church_name }}</h4>
+                    <p>{{ t.denomination }}</p>
+                    <p>{{ t.senior_pastor }}</p>
+                </div>
+                <div class="footer-section">
+                    <h4>{{ t.footer_address_label }}</h4>
+                    <p>{{ t.footer_address }}</p>
+                    <p>{{ t.footer_tel }}</p>
+                </div>
+            </div>
+            <div class="footer-bottom">
+                <p>{{ t.footer_copyright | safe }}</p>
+                <p>{{ t.footer_blessing }}</p>
+            </div>
+        </div>
+    </footer>
+
+    <script src="/static/js/script.js?v=15"></script>
+</body>
+</html>

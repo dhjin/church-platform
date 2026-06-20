@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="{{ t.lang }}">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ t.login_title }} - {{ t.church_name }}</title>
+    <link rel="stylesheet" href="/static/css/style.css?v=26">
+    <style>
+        .login-container {
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: linear-gradient(135deg, var(--primary-color) 0%, var(--primary-lighter) 100%);
+            padding: 20px;
+        }
+
+        .login-box {
+            background: white;
+            padding: 3rem;
+            border-radius: 16px;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+            width: 100%;
+            max-width: 400px;
+        }
+
+        .login-header {
+            text-align: center;
+            margin-bottom: 2rem;
+        }
+
+        .login-header h1 {
+            color: var(--primary-color);
+            font-size: 2rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .login-header p {
+            color: var(--text-light);
+        }
+
+        .form-group {
+            margin-bottom: 1.5rem;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 0.5rem;
+            color: var(--text-dark);
+            font-weight: 500;
+        }
+
+        .form-group input {
+            width: 100%;
+            padding: 12px 16px;
+            border: 2px solid var(--border-color);
+            border-radius: 8px;
+            font-size: 1rem;
+            transition: border-color 0.3s;
+        }
+
+        .form-group input:focus {
+            outline: none;
+            border-color: var(--primary-color);
+        }
+
+        .login-button {
+            width: 100%;
+            padding: 16px;
+            background: linear-gradient(135deg, var(--accent-color), var(--accent-hover));
+            color: white;
+            border: none;
+            border-radius: 10px;
+            font-size: 1.15rem;
+            font-weight: 700;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+            box-shadow: 0 4px 16px rgba(244, 162, 97, 0.45);
+            letter-spacing: 0.03em;
+        }
+
+        .login-button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 24px rgba(244, 162, 97, 0.55);
+        }
+
+        .login-button:active {
+            transform: translateY(0);
+        }
+
+        .error-message {
+            background-color: #fee;
+            color: #c33;
+            padding: 12px;
+            border-radius: 8px;
+            margin-bottom: 1rem;
+            border-left: 4px solid #c33;
+        }
+
+        .back-link {
+            text-align: center;
+            margin-top: 1.5rem;
+        }
+
+        .back-link a {
+            color: var(--primary-color);
+            text-decoration: none;
+            font-weight: 500;
+        }
+
+        .back-link a:hover {
+            text-decoration: underline;
+        }
+
+        .admin-note {
+            background-color: var(--bg-light);
+            padding: 1rem;
+            border-radius: 8px;
+            margin-top: 1.5rem;
+            font-size: 0.9rem;
+            color: var(--text-light);
+        }
+    </style>
+</head>
+<body>
+    <div class="login-container">
+        <div class="login-box">
+            <div class="login-header">
+                <h1 style="display: flex; align-items: center; justify-content: center; gap: 8px;"><img src="/static/images/logo.png?v=2" alt="logo" style="height: 40px; width: 40px; object-fit: contain;"> {{ t.church_name }}</h1>
+                <p>{{ t.login_title }}</p>
+            </div>
+
+            {% if success %}
+            <div style="background-color: #d4edda; color: #155724; padding: 12px; border-radius: 8px; margin-bottom: 1rem; border-left: 4px solid #28a745;">
+                {{ success | safe }}
+            </div>
+            {% endif %}
+
+            {% if error %}
+            <div class="error-message">
+                {{ error }}
+            </div>
+            {% endif %}
+
+            <form method="POST" action="{{ lp }}/login">
+                <div class="form-group">
+                    <label for="username">{{ t.login_username }}</label>
+                    <input type="text" id="username" name="username" required autofocus>
+                </div>
+
+                <div class="form-group">
+                    <label for="password">{{ t.login_password }}</label>
+                    <input type="password" id="password" name="password" required>
+                </div>
+
+                <button type="submit" class="login-button">{{ t.login_button }}</button>
+            </form>
+
+            <div style="text-align: center; margin-top: 1rem; font-size: 0.95rem; color: var(--text-light);">
+                {{ t.login_no_account }} <a href="{{ lp }}/register" style="color: var(--primary-color); text-decoration: none; font-weight: 600;">{{ t.login_register_link }}</a>
+            </div>
+
+            <div class="back-link">
+                <a href="{{ lp }}/">{{ t.login_back | safe }}</a>
+            </div>
+
+            <div style="text-align: center; margin-top: 1rem;">
+                <a href="{% if t.lang == 'ko' %}/en/login{% else %}/login{% endif %}" style="color: var(--text-light); text-decoration: none; font-size: 0.9rem;">{{ t.other_lang_name }}</a>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

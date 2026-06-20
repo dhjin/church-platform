@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="{{ t.lang }}">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ t.direction_title }} - {{ t.church_name }}</title>
+    <link rel="icon" href="/static/favicon.ico" type="image/x-icon">
+    <meta name="description" content="더하는 교회 찾아오시는 길을 안내합니다.">
+    <meta property="og:type" content="website">
+    <meta property="og:site_name" content="더하는 교회">
+    <meta property="og:title" content="{{ t.direction_title }} - {{ t.church_name }}">
+    <meta property="og:description" content="더하는 교회 찾아오시는 길을 안내합니다.">
+    <meta property="og:image" content="https://thechurch-plus.org/static/images/og-image.jpg">
+    <meta property="og:url" content="https://thechurch-plus.org/direction">
+    <link rel="stylesheet" href="/static/css/style.css?v=26">
+</head>
+
+<body>
+    <!-- Header -->
+    <header class="header page-header">
+        <nav class="navbar">
+            <div class="container">
+                <div class="logo">
+                    <h1><a href="{{ lp }}/#home" style="color: inherit; text-decoration: none; display: flex; align-items: center; gap: 8px;"><img src="/static/images/logo.png?v=2" alt="logo" style="height: 36px; width: 36px; object-fit: contain;"> {{ t.church_name }}</a></h1>
+                </div>
+                <button class="mobile-menu-toggle" aria-label="menu">
+                    <span></span>
+                    <span></span>
+                    <span></span>
+                </button>
+                <ul class="nav-menu">
+                    <li><a href="{{ lp }}/#home">{{ t.nav_home }}</a></li>
+                    <li class="nav-item dropdown">
+                        <a href="{{ lp }}/about" class="dropbtn active">{{ t.nav_about }}</a>
+                        <ul class="dropdown-menu">
+                            <li><a href="{{ lp }}/direction">{{ t.nav_direction }}</a></li>
+                            <li><a href="{{ lp }}/about">{{ t.nav_vision }}</a></li>
+                            <li><a href="{{ lp }}/#schedule-news">{{ t.nav_schedule }}</a></li>
+                            <li><a href="{{ lp }}/#contact">{{ t.nav_location }}</a></li>
+                            <li><a href="{{ lp }}/people">{{ t.nav_people }}</a></li>
+                        </ul>
+                    </li>
+                    <li class="nav-item dropdown">
+                        <a href="{{ lp }}/#videos" class="dropbtn">{{ t.nav_videos }}</a>
+                        <ul class="dropdown-menu">
+                            <li><a href="{{ lp }}/#videos?tab=vision">{{ t.nav_church_vision }}</a></li>
+                            <li><a href="{{ lp }}/#videos?tab=sermons">{{ t.nav_sermons }}</a></li>
+                            <li><a href="{{ lp }}/#videos?tab=shorts">{{ t.nav_shorts }}</a></li>
+                            <li><a href="{{ lp }}/#videos?tab=qty">{{ t.nav_qt }}</a></li>
+                        </ul>
+                    </li>
+                    <li><a href="{{ lp }}/pastoral">{{ t.nav_pastoral }}</a></li>
+                    <li><a href="{{ lp }}/#schedule-news">{{ t.nav_worship }}</a></li>
+                    <li><a href="{{ lp }}/#schedule-news">{{ t.nav_news }}</a></li>
+                    <li><a href="{{ lp }}/#contact">{{ t.nav_location }}</a></li>
+                    <li class="lang-switch"><a href="{% if t.lang == 'ko' %}/en/direction{% else %}/direction{% endif %}">{{ t.other_lang_name }}</a></li>
+                </ul>
+            </div>
+        </nav>
+    </header>
+
+    <main class="page-content" style="padding: 84px 0 42px 0; min-height: 70vh;">
+        <div class="container">
+            <div class="section-header">
+                <h2>{{ t.direction_title }}</h2>
+                <div class="divider"></div>
+            </div>
+
+            <div class="about-content" style="max-width: 800px; margin: 0 auto;">
+                <div class="page-text-content" style="line-height: 1.8; font-size: 1.1rem; white-space: pre-line;">
+                    {{ content | safe }}
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- Footer -->
+    <footer class="footer">
+        <div class="container">
+            <div class="footer-info">
+                <p><strong>[{{ t.denomination }}] {{ t.church_name }}</strong></p>
+                <p>{{ t.pastor_label }}</p>
+                <p>{{ t.footer_address }}</p>
+                <p>{{ t.footer_phone }}</p>
+                <p>{{ t.footer_email }}</p>
+            </div>
+            <div class="footer-bottom">
+                <p>{{ t.footer_copyright | safe }}</p>
+            </div>
+        </div>
+    </footer>
+
+    <script src="/static/js/script.js?v=15"></script>
+</body>
+
+</html>

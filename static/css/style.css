@@ -1,0 +1,2539 @@
+/* Reset and Base Styles */
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+:root {
+    /* Primary Colors - Enhanced depth */
+    --primary-color: #1e3a5f;
+    --primary-light: #2c5f8d;
+    --primary-lighter: #5a9fd4;
+    --primary-dark: #152841;
+
+    /* Accent Colors */
+    --accent-color: #f4a261;
+    --accent-hover: #e76f51;
+    --accent-light: #ffd4a3;
+
+    /* Neutral Colors */
+    --text-dark: #1a1a1a;
+    --text-medium: #333333;
+    --text-light: #666666;
+    --text-lighter: #999999;
+
+    /* Backgrounds */
+    --bg-white: #ffffff;
+    --bg-light: #f8f9fa;
+    --bg-lighter: #fafbfc;
+    --bg-dark: #2c3e50;
+
+    /* Borders */
+    --border-color: #e0e0e0;
+    --border-light: #efefef;
+
+    /* Shadows - Enhanced depth */
+    --shadow-sm: 0 2px 4px rgba(0, 0, 0, 0.08);
+    --shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    --shadow-md: 0 8px 20px rgba(0, 0, 0, 0.12);
+    --shadow-lg: 0 12px 28px rgba(0, 0, 0, 0.15);
+    --shadow-hover: 0 8px 24px rgba(0, 0, 0, 0.18);
+
+    /* Spacing System (8px base) */
+    --spacing-xs: 0.35rem;
+    --spacing-sm: 0.7rem;
+    --spacing-md: 1.05rem;
+    --spacing-lg: 1.4rem;
+    --spacing-xl: 2.1rem;
+    --spacing-2xl: 2.8rem;
+    --spacing-3xl: 4.2rem;
+
+    /* Transitions */
+    --transition-fast: 0.2s ease;
+    --transition-base: 0.3s ease;
+    --transition-slow: 0.5s ease;
+}
+
+body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Noto Sans KR', 'Malgun Gothic', sans-serif;
+    line-height: 1.7;
+    color: var(--text-dark);
+    font-size: 16px;
+    background-color: var(--bg-white);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    word-break: keep-all;
+    overflow-wrap: break-word;
+}
+
+h1 {
+    font-size: 3rem;
+    font-weight: 700;
+    line-height: 1.2;
+    letter-spacing: -0.02em;
+}
+
+h2 {
+    font-size: 2.5rem;
+    font-weight: 700;
+    line-height: 1.25;
+}
+
+h3 {
+    font-size: 1.75rem;
+    font-weight: 600;
+    line-height: 1.3;
+}
+
+.container {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 0 20px;
+}
+
+/* Header and Navigation */
+.header {
+    background: linear-gradient(to bottom, var(--bg-white) 0%, var(--bg-lighter) 100%);
+    box-shadow: var(--shadow);
+    border-bottom: 1px solid var(--border-light);
+    position: sticky;
+    top: 0;
+    z-index: 1000;
+}
+
+.navbar {
+    padding: 1rem 0;
+}
+
+.navbar .container {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.logo h1 {
+    background: linear-gradient(135deg, var(--primary-color) 0%, var(--primary-lighter) 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    font-size: 1.8rem;
+    font-weight: 700;
+}
+
+/* Mobile Menu Toggle */
+.mobile-menu-toggle {
+    display: none;
+    flex-direction: column;
+    gap: 4px;
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 8px;
+    z-index: 1001;
+}
+
+.mobile-menu-toggle span {
+    width: 25px;
+    height: 3px;
+    background-color: var(--primary-color);
+    border-radius: 3px;
+    transition: all 0.3s ease;
+}
+
+.mobile-menu-toggle.active span:nth-child(1) {
+    transform: rotate(45deg) translate(5px, 5px);
+}
+
+.mobile-menu-toggle.active span:nth-child(2) {
+    opacity: 0;
+}
+
+.mobile-menu-toggle.active span:nth-child(3) {
+    transform: rotate(-45deg) translate(7px, -6px);
+}
+
+.nav-menu {
+    display: flex;
+    list-style: none;
+    gap: 0.5rem;
+    flex-wrap: nowrap;
+}
+
+.nav-menu a {
+    text-decoration: none;
+    color: var(--text-dark);
+    font-weight: 500;
+    padding: 0.5rem 0.7rem;
+    border-radius: 8px;
+    position: relative;
+    transition: color var(--transition-base);
+    white-space: nowrap;
+    font-size: 0.92rem;
+}
+
+.nav-menu a::after {
+    content: '';
+    position: absolute;
+    bottom: 0.3rem;
+    left: 0.7rem;
+    right: 0.7rem;
+    height: 2px;
+    background: linear-gradient(to right, var(--primary-color), var(--accent-color));
+    transform: scaleX(0);
+    transition: transform var(--transition-base);
+}
+
+.nav-menu a:hover,
+.nav-menu a.active {
+    color: var(--primary-color);
+}
+
+.nav-menu a:hover::after,
+.nav-menu a.active::after {
+    transform: scaleX(1);
+}
+
+/* Dropdown Navbar Styles */
+.nav-item.dropdown {
+    position: relative;
+    display: inline-block;
+}
+
+.dropdown-menu {
+    display: none;
+    position: absolute;
+    top: 100%;
+    left: 50%;
+    transform: translateX(-50%);
+    background-color: #ffffff;
+    min-width: 160px;
+    box-shadow: var(--shadow-md);
+    border-radius: 8px;
+    z-index: 1000;
+    padding: 0.5rem 0;
+    list-style: none;
+}
+
+/* Show dropdown on hover (Desktop) */
+.nav-item.dropdown:hover .dropdown-menu {
+    display: block;
+    animation: fadeIn 0.2s ease;
+}
+
+/* Show dropdown on mobile when .open class is toggled by JS */
+.nav-item.dropdown.open .dropdown-menu {
+    display: block;
+    position: static;
+    /* In mobile, inline flow */
+    box-shadow: none;
+    background: var(--bg-light);
+    border-radius: 4px;
+    padding: 0;
+    min-width: unset;
+    transform: none;
+    animation: none;
+    left: auto;
+}
+
+.dropdown-menu li {
+    width: 100%;
+    padding: 0;
+}
+
+.dropdown-menu a {
+    color: var(--text-dark);
+    padding: 0.8rem 1.2rem;
+    text-decoration: none;
+    display: block;
+    font-size: 0.9rem;
+    white-space: nowrap;
+    border-radius: 0;
+}
+
+.dropdown-menu a::after {
+    display: none;
+    /* No underline effect on dropdown links */
+}
+
+.dropdown-menu a:hover,
+.dropdown-menu a.active {
+    background-color: var(--bg-color);
+    color: var(--primary-color);
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translate(-50%, -10px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translate(-50%, 0);
+    }
+}
+
+/* Hero Section */
+.hero {
+    background: linear-gradient(135deg, var(--primary-dark) 0%, var(--primary-color) 50%, var(--primary-lighter) 100%);
+    color: white;
+    padding: 84px 14px;
+    text-align: center;
+    position: relative;
+    overflow: hidden;
+}
+
+/* Subtle pattern overlay */
+.hero::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-image: repeating-linear-gradient(45deg,
+            transparent,
+            transparent 10px,
+            rgba(255, 255, 255, 0.03) 10px,
+            rgba(255, 255, 255, 0.03) 20px);
+    pointer-events: none;
+}
+
+.hero-content {
+    max-width: 800px;
+    margin: 0 auto;
+}
+
+.hero-title {
+    font-size: 3.5rem;
+    font-weight: 700;
+    margin-bottom: 1rem;
+    line-height: 1.2;
+    letter-spacing: -0.02em;
+    text-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+}
+
+.hero-subtitle {
+    font-size: 1.3rem;
+    margin-bottom: 1rem;
+    opacity: 0.95;
+}
+
+.hero-info {
+    font-size: 1.1rem;
+    margin-bottom: 2rem;
+    opacity: 0.9;
+    font-weight: 300;
+}
+
+.hero-buttons {
+    display: flex;
+    gap: 1rem;
+    justify-content: center;
+    flex-wrap: wrap;
+}
+
+.btn {
+    display: inline-block;
+    padding: 14px 36px;
+    text-decoration: none;
+    border-radius: 50px;
+    font-weight: 600;
+    letter-spacing: 0.03em;
+    position: relative;
+    overflow: hidden;
+    transition: all var(--transition-base);
+    cursor: pointer;
+}
+
+.btn-primary {
+    background-color: white;
+    color: var(--primary-color);
+    box-shadow: var(--shadow-md);
+}
+
+.btn-primary:hover {
+    background-color: var(--accent-color);
+    color: white;
+    transform: translateY(-3px);
+    box-shadow: var(--shadow-lg);
+}
+
+.btn-secondary {
+    background-color: transparent;
+    color: white;
+    border: 2px solid white;
+}
+
+.btn-secondary:hover {
+    background-color: white;
+    color: var(--primary-color);
+    transform: translateY(-3px);
+}
+
+/* Section Styles */
+section {
+    padding: 56px 14px;
+}
+
+.section-header {
+    text-align: center;
+    margin-bottom: 3rem;
+}
+
+.section-header h2 {
+    font-size: 2rem;
+    color: var(--primary-color);
+    font-weight: 700;
+    letter-spacing: -0.01em;
+    text-transform: uppercase;
+    margin-bottom: 1rem;
+}
+
+.divider {
+    width: 100px;
+    height: 4px;
+    background: linear-gradient(to right, var(--primary-color), var(--accent-color));
+    margin: 0 auto;
+    border-radius: 2px;
+}
+
+/* Welcome Section */
+.welcome {
+    background-color: var(--bg-light);
+}
+
+.welcome-text {
+    max-width: 800px;
+    margin: 0 auto 2rem auto;
+    font-size: 1.2rem;
+    text-align: center;
+    color: var(--text-light);
+    line-height: 1.8;
+}
+
+.church-info-banner {
+    display: flex;
+    justify-content: center;
+    gap: 2rem;
+    flex-wrap: wrap;
+    margin-top: 2rem;
+    padding: 1.05rem;
+    background-color: var(--bg-white);
+    border-radius: 12px;
+    box-shadow: var(--shadow);
+    max-width: 900px;
+    margin-left: auto;
+    margin-right: auto;
+}
+
+.church-info-banner .info-item {
+    font-size: 1rem;
+    color: var(--text-dark);
+}
+
+.church-info-banner .info-item strong {
+    color: var(--primary-color);
+    margin-right: 0.5rem;
+}
+
+/* =============================================
+   Home Top Section: Vision (left) + Welcome (right)
+   ============================================= */
+.home-top-section {
+    background-color: var(--bg-light);
+    padding: 56px 0;
+}
+
+.home-top-grid {
+    display: grid;
+    grid-template-columns: 5fr 7fr;
+    gap: 3rem;
+    align-items: stretch;
+}
+
+/* Left column: church vision */
+.vision-col {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    align-items: flex-start;
+}
+
+.vision-label-btn {
+    display: inline-block;
+    background-color: var(--primary-color);
+    color: white;
+    padding: 10px 28px;
+    border-radius: 30px;
+    font-size: 1.1rem;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+}
+
+.vision-featured-card {
+    width: 100%;
+}
+
+/* Right column: welcome/intro */
+.welcome-col {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    padding: 2.5rem 2rem;
+    background: var(--bg-white);
+    border-radius: 16px;
+    box-shadow: var(--shadow);
+    min-height: 200px;
+}
+
+.welcome-col .section-header {
+    margin-bottom: 1.5rem;
+}
+
+.welcome-col .welcome-text {
+    max-width: 100%;
+    margin: 0 0 1.5rem 0;
+    text-align: center;
+}
+
+.welcome-col .church-info-banner {
+    max-width: 100%;
+    margin-top: 0;
+    margin-left: 0;
+    margin-right: 0;
+}
+
+/* Mobile: stack vertically */
+@media (max-width: 900px) {
+    .home-top-grid {
+        grid-template-columns: 1fr;
+        gap: 1.5rem;
+    }
+
+    .vision-col {
+        align-items: center;
+    }
+
+    .vision-featured-card {
+        max-width: 480px;
+        width: 100%;
+    }
+
+    .welcome-col {
+        padding: 1.5rem 1.2rem;
+    }
+}
+
+/* Grid Layout */
+.grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+    gap: 2rem;
+    margin-top: 2rem;
+}
+
+/* Card Styles */
+.card {
+    background-color: var(--bg-white);
+    border-radius: 16px;
+    box-shadow: var(--shadow);
+    border: 1px solid transparent;
+    position: relative;
+    transition: all var(--transition-base);
+    overflow: hidden;
+}
+
+.card::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 4px;
+    background: linear-gradient(to right, var(--primary-color), var(--accent-color));
+    transform: scaleX(0);
+    transition: transform var(--transition-base);
+}
+
+.card:hover {
+    transform: translateY(-8px);
+    box-shadow: var(--shadow-lg);
+}
+
+.card:hover::before {
+    transform: scaleX(1);
+}
+
+.card-header {
+    background: linear-gradient(135deg, var(--primary-dark) 0%, var(--primary-color) 50%, var(--primary-lighter) 100%);
+    color: white;
+    padding: 1.4rem 1.05rem;
+}
+
+.card-header h3 {
+    font-size: 1.4rem;
+    font-weight: 600;
+}
+
+.card-body {
+    padding: 1.05rem;
+}
+
+.meta {
+    display: flex;
+    gap: 1.5rem;
+    margin-bottom: 1rem;
+    color: var(--text-light);
+    font-size: 0.95rem;
+    flex-wrap: wrap;
+}
+
+.meta span {
+    display: flex;
+    align-items: center;
+    gap: 0.3rem;
+}
+
+.description {
+    color: var(--text-dark);
+    line-height: 1.6;
+}
+
+.location {
+    color: var(--text-light);
+    margin-bottom: 0.5rem;
+}
+
+/* Sermons Section */
+.sermons {
+    background-color: var(--bg-white);
+}
+
+/* News Board Section */
+.news {
+    background-color: var(--bg-white);
+}
+
+.news-board {
+    max-width: 1000px;
+    margin: 0 auto;
+}
+
+/* News Board - DIV Grid Layout */
+.news-container {
+    background-color: var(--bg-white);
+    box-shadow: var(--shadow-md);
+    border-radius: 16px;
+    overflow: hidden;
+}
+
+.news-header {
+    display: grid;
+    grid-template-columns: 60px 1fr 100px 60px;
+    gap: 0;
+    align-items: center;
+    background: linear-gradient(135deg, var(--primary-dark) 0%, var(--primary-color) 100%);
+    color: white;
+    font-weight: 600;
+    font-size: 0.9rem;
+}
+
+.news-item {
+    display: grid;
+    grid-template-columns: 60px 1fr 100px 60px;
+    gap: 0;
+    align-items: center;
+    border-bottom: 1px solid var(--border-color);
+    cursor: pointer;
+    position: relative;
+    transition: background-color var(--transition-base);
+}
+
+.news-cell {
+    padding: 0.75rem 0.5rem;
+    text-align: center;
+    min-width: 0;
+}
+
+.news-header .news-subject,
+.news-item .news-subject {
+    text-align: left;
+    padding-left: 1rem;
+}
+
+.news-item:last-child {
+    border-bottom: none;
+}
+
+.news-item .news-subject {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.news-item::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: 4px;
+    background: var(--accent-color);
+    transform: scaleY(0);
+    transition: transform var(--transition-base);
+}
+
+.news-item:hover {
+    background-color: var(--bg-light);
+}
+
+.news-item:hover::before {
+    transform: scaleY(1);
+}
+
+.login-link:hover {
+    background-color: #e76f51 !important;
+}
+
+/* Language Switcher */
+.lang-switch a {
+    background: rgba(255, 255, 255, 0.15);
+    padding: 4px 12px !important;
+    border-radius: 4px;
+    font-size: 0.85rem !important;
+    font-weight: 600;
+    letter-spacing: 0.5px;
+    transition: background 0.3s;
+}
+
+.lang-switch a:hover {
+    background: rgba(255, 255, 255, 0.3) !important;
+}
+
+@media (max-width: 768px) {
+    .lang-switch {
+        border-top: 1px solid rgba(255, 255, 255, 0.1);
+        padding-top: 8px;
+        margin-top: 4px;
+    }
+}
+
+/* Unified Video Section Layout */
+.video-section {
+    padding: 60px 0;
+    background-color: var(--bg-color);
+}
+
+.video-tabs {
+    display: flex;
+    flex-direction: column;
+    gap: 30px;
+}
+
+.tab-buttons {
+    display: flex;
+    justify-content: center;
+    gap: 24px;
+    margin-bottom: 20px;
+}
+
+.tab-btn {
+    background-color: white;
+    color: var(--text-color);
+    border: 2px solid var(--border-color);
+    padding: 12px 24px;
+    font-size: 1.1rem;
+    font-weight: 600;
+    border-radius: 30px;
+    cursor: pointer;
+    transition: all var(--transition-base);
+    min-width: 140px;
+}
+
+.tab-btn:hover {
+    border-color: var(--primary-color);
+    color: var(--primary-color);
+    transform: translateY(-2px);
+}
+
+.tab-btn.active {
+    background-color: var(--primary-color);
+    color: white;
+    border-color: var(--primary-color);
+    box-shadow: 0 4px 15px rgba(42, 157, 143, 0.3);
+}
+
+.tab-content {
+    display: none;
+    animation: fadeIn 0.4s ease;
+}
+
+.tab-content.active {
+    display: block;
+    /* Grid is explicitly added inline via HTML/JS or via sub-class */
+}
+
+.video-tabs.show-all .tab-content {
+    display: block;
+}
+
+/* Desktop: show all 3 tabs side-by-side in 3 columns */
+@media (min-width: 1024px) {
+    .video-tabs.show-all {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 20px 24px;
+    }
+
+    .video-tabs.show-all .tab-buttons {
+        grid-column: 1 / -1;
+        margin-bottom: 0;
+    }
+
+    .video-tabs.show-all .tab-content {
+        min-width: 0; /* prevent grid blowout */
+    }
+
+    /* 1 card visible per column in preview mode (no partial cards) */
+    .video-tabs.show-all .carousel-track:not(.shorts-track) {
+        grid-template-columns: none !important;
+        grid-auto-columns: calc(100% - 104px);
+    }
+
+    /* 1 shorts visible per column in preview mode */
+    .video-tabs.show-all .shorts-track {
+        grid-template-columns: none !important;
+        grid-auto-columns: calc(100% - 104px);
+    }
+
+    .video-tabs.show-all .carousel-nav.prev {
+        left: 2px;
+    }
+
+    .video-tabs.show-all .carousel-nav.next {
+        right: 2px;
+    }
+}
+
+/* Global: show-all mode — exactly 1 card per section at ALL screen sizes */
+/* calc(100% - 104px) accounts for 52px nav-button padding on each side */
+.video-tabs.show-all .carousel-track {
+    grid-template-columns: none !important;
+    grid-auto-columns: calc(100% - 104px) !important;
+}
+
+/* show-all preview: uniform cards, height driven by thumbnail + title */
+.video-tabs.show-all .sermon-card,
+.video-tabs.show-all .shorts-card {
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+/* All thumbnails same height → identical 16:9-equivalent ratio per column width */
+.video-tabs.show-all .sermon-card .video-thumbnail {
+    padding-top: 0 !important;
+    height: 160px;
+    flex-shrink: 0;
+    overflow: hidden;
+}
+
+.video-tabs.show-all .shorts-thumbnail {
+    padding-top: 0 !important;
+    height: 160px;
+    flex-shrink: 0;
+    overflow: hidden;
+}
+
+.video-tabs.show-all .shorts-title {
+    flex: 1;
+    overflow: hidden;
+}
+
+.video-tabs.show-all .shorts-title h4 {
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    min-height: 2.8em;
+    line-height: 1.4;
+}
+
+/* ===== Single-tab mode: compact square-ish cards, more items per row ===== */
+.video-tabs:not(.show-all) .sermon-card,
+.video-tabs:not(.show-all) .shorts-card {
+    height: auto;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+.video-tabs:not(.show-all) .sermon-card .video-thumbnail {
+    padding-top: 0 !important;
+    height: 105px;
+    flex-shrink: 0;
+    overflow: hidden;
+}
+
+.video-tabs:not(.show-all) .shorts-thumbnail {
+    padding-top: 0 !important;
+    height: 105px;
+    flex-shrink: 0;
+    overflow: hidden;
+}
+
+.video-tabs:not(.show-all) .sermon-card .card-body h3 {
+    font-size: 0.82rem;
+}
+
+.video-tabs:not(.show-all) .shorts-title {
+    flex: 1;
+    overflow: hidden;
+}
+
+.video-tabs:not(.show-all) .shorts-title h4 {
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    min-height: 2.8em;
+    line-height: 1.4;
+}
+
+/* Desktop: 6 compact cards per view, width ≈ height
+   grid-template-columns: none removes the .video-grid repeat(4,1fr) explicit columns
+   so all items consistently use grid-auto-columns instead of mixing sizes */
+/* Desktop tab mode: 4 exact cards per view (no partial cards) */
+/* 4 cards + 3 gaps (20px) fit in (100% - 104px padding): W = calc(25% - 41px) */
+@media (min-width: 1024px) {
+    .video-tabs:not(.show-all) #tab-sermons .carousel-track,
+    .video-tabs:not(.show-all) #tab-shorts .carousel-track,
+    .video-tabs:not(.show-all) #tab-qty .carousel-track {
+        grid-template-columns: none !important;
+        grid-auto-columns: calc(25% - 41px) !important;
+    }
+}
+
+/* Mobile tab mode: 1 card per view (clean full-width display) */
+@media (max-width: 1023px) {
+    .video-tabs:not(.show-all) #tab-sermons .carousel-track,
+    .video-tabs:not(.show-all) #tab-shorts .carousel-track,
+    .video-tabs:not(.show-all) #tab-qty .carousel-track {
+        grid-template-columns: none !important;
+        grid-auto-columns: calc(100% - 104px) !important;
+    }
+}
+
+.video-grid {
+    display: grid;
+    /* Web Layout: 4 columns */
+    grid-template-columns: repeat(4, 1fr);
+    gap: 20px;
+    width: 100%;
+}
+
+/* --- Carousel Container Styles --- */
+.carousel-container {
+    position: relative;
+    width: 100%;
+    margin: 0 auto;
+}
+
+.carousel-track {
+    /* To support scrolling, we override grid a bit. We keep display: grid but allow horizontal scroll */
+    overflow-x: auto;
+    overflow-y: hidden;
+    scroll-behavior: smooth;
+    -ms-overflow-style: none;
+    /* IE and Edge */
+    scrollbar-width: none;
+    /* Firefox */
+    /* Snap to card boundaries — no partial/clipped cards */
+    scroll-snap-type: x mandatory;
+    scroll-padding-left: 52px;
+
+    /* Ensure padding for box-shadows inside the scroll area */
+    padding: 10px 5px;
+}
+
+.carousel-track::-webkit-scrollbar {
+    display: none;
+    /* Chrome, Safari and Opera */
+}
+
+/* In Desktop Web, .video-grid enforces repeat(4, 1fr). If we have > 4, it wraps.
+   If we want a strict single-row horizontally scrolling carousel on Desktop, we'd do auto-columns.
+   However, the user mentioned "웹 버전에서는 4개 노출로 통일하면 된다" (Web layout: 4 visible).
+   So we will enforce a strict column setup and horizontal sliding across *all* breakpoints. */
+
+.carousel-track {
+    grid-template-columns: none;
+    grid-auto-flow: column;
+    /* Force single row */
+    /* Default: 2 full cards (accounting for 52px padding on each side) */
+    grid-auto-columns: calc(50% - 58px);
+}
+
+.shorts-track {
+    /* 4 shorts per view desktop (exact fit) */
+    grid-auto-columns: calc(25% - 43px);
+}
+
+/* Base Thumbnail constraints to keep heights proportional */
+.video-thumbnail {
+    aspect-ratio: 16 / 9;
+    /* Standard landscape */
+}
+
+.shorts-thumbnail {
+    aspect-ratio: 9 / 16;
+    /* Standard shorts portrait */
+}
+
+.carousel-nav {
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+    background: rgba(0, 0, 0, 0.55);
+    color: white;
+    border: none;
+    border-radius: 50%;
+    width: 42px;
+    height: 42px;
+    font-size: 1.2rem;
+    cursor: pointer;
+    z-index: 20;
+    transition: background 0.3s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+.carousel-nav:hover {
+    background: rgba(0, 0, 0, 0.85);
+}
+
+/* Position buttons INSIDE the track area so parent overflow doesn't clip them */
+.carousel-nav.prev {
+    left: 8px;
+}
+
+.carousel-nav.next {
+    right: 8px;
+}
+
+/* Give the track some padding so first/last cards aren't fully hidden under buttons */
+.carousel-track {
+    padding-left: 52px;
+    padding-right: 52px;
+}
+
+@media (max-width: 768px) {
+    .board-table {
+        font-size: 0.9rem;
+    }
+
+    .board-table th,
+    .board-table td {
+        padding: 0.7rem 0.5rem;
+    }
+
+    .col-num {
+        width: 50px;
+    }
+
+    .col-date {
+        width: 90px;
+        font-size: 0.85rem;
+    }
+
+    .col-views {
+        width: 60px;
+    }
+
+    .col-title {
+        max-width: 200px;
+    }
+
+    /* --- Mobile Video Carousel Overrides --- */
+    .carousel-track {
+        /* 1 full card per view on mobile — no partial/clipped adjacent cards */
+        grid-template-rows: 1fr;
+        grid-template-columns: none;
+        grid-auto-flow: column;
+        grid-auto-columns: calc(100% - 104px);
+        gap: 12px;
+    }
+
+    .shorts-track {
+        /* Shorts 9:16: 1 card per view on mobile (no clipping) */
+        display: grid !important;
+        grid-template-rows: 1fr !important;
+        grid-template-columns: none !important;
+        grid-auto-flow: column !important;
+        grid-auto-columns: calc(100% - 104px) !important;
+        gap: 8px !important;
+    }
+
+    /* show-all preview mode: 1 card per section on mobile too */
+    .video-tabs.show-all .carousel-track:not(.shorts-track) {
+        grid-auto-columns: calc(100% - 104px);
+    }
+
+    .video-tabs.show-all .shorts-track {
+        grid-auto-columns: calc(100% - 104px) !important;
+    }
+
+    .shorts-track .shorts-card {
+        /* 세로 영상 축소 */
+        max-width: 100%;
+    }
+
+    .shorts-track .shorts-thumbnail {
+        aspect-ratio: 9 / 14;
+        /* 약간 줄여서 더 많이 보이게 */
+    }
+
+    /* 모바일에서도 화살표 표시 (작게) */
+    .carousel-nav {
+        display: flex;
+        width: 32px;
+        height: 32px;
+        font-size: 0.9rem;
+        z-index: 10;
+    }
+
+    .carousel-nav.prev {
+        left: 2px;
+    }
+
+    .carousel-nav.next {
+        right: 2px;
+    }
+
+    .carousel-container {
+        padding: 0 4px;
+    }
+
+    /* 모바일 탭 버튼: 3개 한 줄 */
+    .tab-buttons {
+        flex-wrap: wrap;
+        gap: 12px;
+        justify-content: center;
+    }
+
+    .tab-btn {
+        padding: 8px 16px;
+        font-size: 0.88rem;
+        min-width: 0;
+        flex: 1 1 auto;
+    }
+}
+
+/* Events Section */
+.events {
+    background-color: var(--bg-light);
+}
+
+.event-card .card-header {
+    background: linear-gradient(135deg, var(--accent-color), #e76f51);
+}
+
+/* Worship Schedule */
+/* Schedule and News 2-Column Layout */
+.schedule-news-section {
+    background-color: var(--bg-light);
+    padding: 56px 14px;
+}
+
+.schedule-news-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 3rem;
+    max-width: 1400px;
+    margin: 0 auto;
+}
+
+.schedule-column,
+.news-column {
+    min-width: 0;
+}
+
+/* Consolidated Schedule Card */
+.consolidated-schedule {
+    background: linear-gradient(to bottom right, var(--bg-white) 0%, var(--bg-lighter) 100%);
+    padding: 1.4rem;
+    border-radius: 16px;
+    box-shadow: var(--shadow-md);
+    border-left: 5px solid var(--primary-color);
+}
+
+.schedule-list {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+}
+
+.schedule-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.875rem 1.05rem;
+    background-color: white;
+    border-radius: 10px;
+    border: 1px solid var(--border-light);
+    position: relative;
+    transition: all var(--transition-base);
+}
+
+.schedule-row::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: 4px;
+    background: linear-gradient(to bottom, var(--primary-color), var(--accent-color));
+    transform: scaleY(0);
+    transition: transform var(--transition-base);
+    border-radius: 10px 0 0 10px;
+}
+
+.schedule-row:hover {
+    background-color: var(--bg-lighter);
+    transform: translateX(5px);
+    box-shadow: var(--shadow-sm);
+}
+
+.schedule-row:hover::before {
+    transform: scaleY(1);
+}
+
+.schedule-name {
+    color: var(--text-dark);
+    font-weight: 600;
+    font-size: 1.05rem;
+}
+
+.schedule-time {
+    background-color: rgba(44, 95, 141, 0.08);
+    color: var(--primary-color);
+    font-weight: 500;
+    font-size: 1rem;
+    padding: 0.5rem 1rem;
+    border-radius: 20px;
+}
+
+/* Mobile Responsive */
+@media (max-width: 1024px) {
+    .schedule-news-grid {
+        grid-template-columns: 1fr;
+        gap: 2rem;
+    }
+}
+
+@media (max-width: 768px) {
+    .schedule-news-section {
+        padding: 35px 11px;
+    }
+
+    .consolidated-schedule {
+        padding: 1.05rem;
+    }
+
+    .schedule-row {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 0.5rem;
+    }
+
+    .schedule-time {
+        font-size: 0.9rem;
+    }
+}
+
+/* Announcements Section */
+.announcements {
+    background-color: var(--bg-white);
+}
+
+.announcement-list {
+    max-width: 900px;
+    margin: 0 auto;
+}
+
+.announcement-item {
+    background-color: var(--bg-light);
+    padding: 1.4rem;
+    border-radius: 12px;
+    margin-bottom: 1.5rem;
+    border-left: 4px solid var(--primary-color);
+    transition: all 0.3s ease;
+}
+
+.announcement-item:hover {
+    box-shadow: var(--shadow);
+    transform: translateX(5px);
+}
+
+.announcement-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1rem;
+    flex-wrap: wrap;
+    gap: 1rem;
+}
+
+.announcement-header h3 {
+    color: var(--primary-color);
+    font-size: 1.3rem;
+}
+
+.announcement-header .date {
+    color: var(--text-light);
+    font-size: 0.9rem;
+}
+
+/* About Section */
+.about {
+    background-color: var(--bg-light);
+}
+
+.about-content {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 3rem;
+    margin-top: 2rem;
+}
+
+.about-item {
+    text-align: center;
+    padding: 1.4rem;
+    background-color: var(--bg-white);
+    border-radius: 12px;
+    box-shadow: var(--shadow);
+    transition: all 0.3s ease;
+}
+
+.about-item:hover {
+    transform: translateY(-5px);
+    box-shadow: var(--shadow-hover);
+}
+
+.about-item .icon {
+    font-size: 3rem;
+    margin-bottom: 1rem;
+}
+
+.about-item h3 {
+    color: var(--primary-color);
+    font-size: 1.5rem;
+    margin-bottom: 1rem;
+}
+
+.about-item p {
+    color: var(--text-light);
+    line-height: 1.6;
+}
+
+/* Contact Section */
+.contact {
+    background-color: var(--bg-white);
+}
+
+.church-details {
+    margin-bottom: 3rem;
+}
+
+.detail-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    gap: 2rem;
+    max-width: 900px;
+    margin: 0 auto 3rem auto;
+}
+
+.detail-item {
+    text-align: center;
+    padding: 1.4rem;
+    background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+    color: white;
+    border-radius: 12px;
+    box-shadow: var(--shadow);
+}
+
+.detail-item .icon {
+    font-size: 2.5rem;
+    margin-bottom: 1rem;
+}
+
+.detail-item h3 {
+    font-size: 1.2rem;
+    margin-bottom: 0.5rem;
+    font-weight: 600;
+}
+
+.detail-item p {
+    font-size: 1.1rem;
+}
+
+.contact-info {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    gap: 2rem;
+    max-width: 900px;
+    margin: 0 auto 3rem auto;
+}
+
+.contact-item {
+    text-align: center;
+    padding: 1.4rem;
+    background-color: var(--bg-light);
+    border-radius: 12px;
+    transition: all 0.3s ease;
+}
+
+.contact-item:hover {
+    background-color: var(--primary-color);
+    color: white;
+    transform: scale(1.05);
+}
+
+.contact-item .icon {
+    font-size: 2.5rem;
+    margin-bottom: 1rem;
+}
+
+.contact-item h3 {
+    font-size: 1.3rem;
+    margin-bottom: 0.5rem;
+}
+
+.contact-item:hover h3,
+.contact-item:hover p {
+    color: white;
+}
+
+/* Map Section */
+.map-section {
+    max-width: 1000px;
+    margin: 3rem auto 0 auto;
+}
+
+.map-title {
+    text-align: center;
+    font-size: 1.8rem;
+    color: var(--primary-color);
+    margin-bottom: 1.5rem;
+}
+
+.map-container {
+    border-radius: 12px;
+    overflow: hidden;
+    box-shadow: var(--shadow);
+    margin-bottom: 1.5rem;
+}
+
+#map {
+    width: 100%;
+    height: 400px;
+    min-height: 300px;
+}
+
+.map-buttons {
+    display: flex;
+    gap: 1rem;
+    justify-content: center;
+    flex-wrap: wrap;
+}
+
+.btn-naver {
+    background-color: #03c75a;
+    color: white;
+    padding: 12px 24px;
+    text-decoration: none;
+    border-radius: 8px;
+    font-weight: 600;
+    transition: all 0.3s ease;
+}
+
+.btn-naver:hover {
+    background-color: #02b350;
+    transform: translateY(-2px);
+    box-shadow: var(--shadow);
+}
+
+.btn-kakao {
+    background-color: #fee500;
+    color: #000000;
+    padding: 12px 24px;
+    text-decoration: none;
+    border-radius: 8px;
+    font-weight: 600;
+    transition: all 0.3s ease;
+}
+
+.btn-kakao:hover {
+    background-color: #fdd835;
+    transform: translateY(-2px);
+    box-shadow: var(--shadow);
+}
+
+/* Footer */
+.footer {
+    background: linear-gradient(to bottom, var(--primary-dark) 0%, #0f1e2e 100%);
+    color: white;
+    padding: var(--spacing-2xl) 20px var(--spacing-lg) 20px;
+    position: relative;
+}
+
+.footer::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background-image: repeating-linear-gradient(45deg,
+            transparent,
+            transparent 20px,
+            rgba(255, 255, 255, 0.02) 20px,
+            rgba(255, 255, 255, 0.02) 40px);
+    pointer-events: none;
+}
+
+.footer-content {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    gap: 2rem;
+    max-width: 1200px;
+    margin: 0 auto 2rem auto;
+    text-align: center;
+}
+
+.footer-section h4 {
+    font-size: 1.3rem;
+    margin-bottom: 1rem;
+    border-bottom: 3px solid rgba(244, 162, 97, 0.5);
+    padding-bottom: 0.75rem;
+    display: inline-block;
+}
+
+.footer-section p {
+    margin: 0.5rem 0;
+    opacity: 0.9;
+    line-height: 1.8;
+}
+
+.footer-bottom {
+    text-align: center;
+    padding-top: 2rem;
+    border-top: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.footer-bottom p {
+    margin: 0.5rem 0;
+    opacity: 0.9;
+}
+
+/* Responsive Design */
+@media (max-width: 1024px) {
+
+    /* Mobile Menu Toggle */
+    .mobile-menu-toggle {
+        display: flex;
+    }
+
+    .nav-menu {
+        position: fixed;
+        top: 70px;
+        right: -100%;
+        width: 280px;
+        height: calc(100vh - 70px);
+        background-color: var(--bg-white);
+        flex-direction: column;
+        gap: 0;
+        padding: 2rem 0;
+        box-shadow: -2px 0 10px rgba(0, 0, 0, 0.1);
+        transition: right 0.3s ease;
+        overflow-y: auto;
+    }
+
+    .nav-menu.active {
+        right: 0;
+    }
+
+    .nav-menu li {
+        width: 100%;
+    }
+
+    .nav-menu a {
+        display: block;
+        padding: 1rem 2rem;
+        border-radius: 0;
+        border-bottom: 1px solid var(--border-color);
+        font-size: 1rem;
+        white-space: normal;
+    }
+
+    .logo h1 {
+        font-size: 1.4rem;
+    }
+
+    /* Hero Section */
+    .hero {
+        padding: 42px 14px;
+    }
+
+    .hero-title {
+        font-size: 2.2rem;
+    }
+
+    .hero-subtitle {
+        font-size: 1rem;
+    }
+
+    .hero-info {
+        font-size: 0.9rem;
+    }
+
+    .hero-buttons {
+        flex-direction: column;
+        gap: 0.8rem;
+    }
+
+    .btn {
+        width: 100%;
+        max-width: 300px;
+        padding: 16px 32px;
+        min-height: 48px;
+    }
+
+    /* Sections */
+    section {
+        padding: var(--spacing-xl) 11px;
+    }
+
+    .section-header h2 {
+        font-size: 2rem;
+    }
+
+    .card:active {
+        transform: scale(0.98);
+    }
+
+    /* Grid */
+    .grid {
+        grid-template-columns: 1fr;
+        gap: 1.5rem;
+    }
+
+    /* Welcome Section */
+    .welcome-text {
+        font-size: 1rem;
+    }
+
+    .church-info-banner {
+        flex-direction: column;
+        gap: 1rem;
+        padding: 1rem;
+    }
+
+    /* Cards */
+    .card-header h3 {
+        font-size: 1.2rem;
+    }
+
+    .card-body {
+        padding: 0.7rem;
+    }
+
+    /* About Section */
+    .about-content {
+        gap: 1.5rem;
+    }
+
+    /* Contact Section */
+    .detail-grid,
+    .contact-info {
+        grid-template-columns: 1fr;
+        gap: 1rem;
+    }
+
+    .detail-item,
+    .contact-item {
+        padding: 1.05rem;
+    }
+
+    /* Map */
+    #map {
+        height: 300px;
+    }
+
+    .map-buttons {
+        flex-direction: column;
+        gap: 0.8rem;
+    }
+
+    .btn-naver,
+    .btn-kakao {
+        width: 100%;
+        max-width: 300px;
+    }
+
+    /* Footer */
+    .footer-content {
+        grid-template-columns: 1fr;
+        gap: 1.5rem;
+    }
+
+    .footer {
+        padding: 1.4rem 11px 1.05rem 11px;
+    }
+}
+
+/* Tablet Responsiveness */
+@media (min-width: 769px) and (max-width: 1024px) {
+    .container {
+        padding: 0 30px;
+    }
+
+    .hero-title {
+        font-size: 2.5rem;
+    }
+
+    .grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}
+
+/* Large desktop nav adjustments */
+@media (min-width: 1025px) and (max-width: 1280px) {
+    .nav-menu {
+        gap: 0.3rem;
+    }
+
+    .nav-menu a {
+        padding: 0.5rem 0.5rem;
+        font-size: 0.88rem;
+    }
+}
+
+/* Small Mobile Devices */
+@media (max-width: 480px) {
+    .logo h1 {
+        font-size: 1.2rem;
+    }
+
+    .hero-title {
+        font-size: 1.5rem;
+    }
+
+    .hero-subtitle {
+        font-size: 0.95rem;
+    }
+
+    .hero-info {
+        font-size: 0.85rem;
+    }
+
+    .section-header h2 {
+        font-size: 1.5rem;
+    }
+
+    .card-header {
+        padding: 0.7rem;
+    }
+
+    .card-header h3 {
+        font-size: 1.1rem;
+    }
+
+    .meta {
+        font-size: 0.85rem;
+    }
+
+    .about-item .icon,
+    .contact-item .icon,
+    .detail-item .icon {
+        font-size: 2rem;
+    }
+
+    .shorts-grid {
+        grid-template-columns: repeat(2, 1fr);
+        gap: 0.8rem;
+    }
+
+    .shorts-title h4 {
+        font-size: 0.85rem;
+    }
+}
+
+/* Smooth Scrolling */
+html {
+    scroll-behavior: smooth;
+}
+
+/* Animations */
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(20px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.card,
+.announcement-item,
+.about-item,
+.contact-item {
+    animation: fadeIn 0.6s ease-out;
+}
+
+.admin-link {
+    background-color: #28a745 !important;
+    color: white !important;
+}
+
+.admin-link:hover {
+    background-color: #218838 !important;
+}
+
+/* Vision and Sermons Dual Section */
+.vision-sermons-section {
+    background-color: var(--bg-light);
+    padding: 56px 14px;
+}
+
+.dual-section {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    /* Equal width for Vision and Sermons */
+    gap: 2rem;
+    max-width: 1400px;
+    margin: 0 auto;
+}
+
+.section-half {
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+}
+
+/* Slider Container */
+.slider-container {
+    position: relative;
+    padding: 0 40px;
+    /* Reduced from 50px for better card size */
+}
+
+.card-slider {
+    overflow: hidden;
+    position: relative;
+}
+
+.card-slider .card {
+    display: none;
+    animation: fadeIn 0.5s;
+}
+
+.card-slider .card.active {
+    display: block;
+}
+
+/* Slider Buttons */
+.slider-btn {
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+    background-color: rgba(44, 95, 141, 0.8);
+    color: white;
+    border: none;
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    font-size: 1.2rem;
+    cursor: pointer;
+    transition: all 0.3s;
+    z-index: 10;
+}
+
+.slider-btn:hover {
+    background-color: var(--primary-color);
+    transform: translateY(-50%) scale(1.1);
+}
+
+.slider-prev {
+    left: 0;
+}
+
+.slider-next {
+    right: 0;
+}
+
+/* Vision Cards */
+.vision-card {
+    background-color: var(--bg-white);
+    border-radius: 12px;
+    overflow: hidden;
+    box-shadow: var(--shadow);
+    transition: all 0.3s;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+}
+
+.vision-card:hover {
+    transform: translateY(-5px);
+    box-shadow: var(--shadow-hover);
+}
+
+.video-thumbnail {
+    position: relative;
+    width: 100%;
+    padding-top: 56.25%;
+    /* 16:9 aspect ratio */
+    overflow: hidden;
+    cursor: pointer;
+    background-color: #000;
+}
+
+.video-thumbnail::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(to bottom, transparent 0%, rgba(0, 0, 0, 0.3) 100%);
+    z-index: 1;
+}
+
+.video-thumbnail img {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    transition: transform var(--transition-base);
+}
+
+.video-thumbnail:hover img {
+    transform: scale(1.08);
+}
+
+.play-button {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 80px;
+    height: 80px;
+    background: linear-gradient(135deg, rgba(255, 0, 0, 0.9) 0%, rgba(220, 0, 0, 0.9) 100%);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 2.5rem;
+    color: white;
+    box-shadow: 0 4px 20px rgba(255, 0, 0, 0.4);
+    transition: all var(--transition-base);
+    z-index: 2;
+}
+
+.play-button::before {
+    content: '';
+    position: absolute;
+    width: 100%;
+    height: 100%;
+    border-radius: 50%;
+    border: 2px solid rgba(255, 255, 255, 0.5);
+    animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+    0% {
+        transform: scale(1);
+        opacity: 1;
+    }
+
+    100% {
+        transform: scale(1.4);
+        opacity: 0;
+    }
+}
+
+.video-thumbnail:hover .play-button {
+    background: linear-gradient(135deg, rgba(255, 0, 0, 1) 0%, rgba(220, 0, 0, 1) 100%);
+    transform: translate(-50%, -50%) scale(1.1);
+    box-shadow: 0 6px 28px rgba(255, 0, 0, 0.6);
+}
+
+.vision-card .card-body {
+    padding: 1.05rem;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+}
+
+.vision-card .card-title {
+    font-size: 1.4rem;
+    color: var(--text-dark);
+    margin-bottom: 1rem;
+    font-weight: 600;
+}
+
+/* Sermon Cards */
+.sermon-slider {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 1.5rem;
+    height: 100%;
+}
+
+.sermon-slider .card {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+}
+
+.sermon-card {
+    background-color: var(--bg-white);
+    border-radius: 12px;
+    overflow: hidden;
+    box-shadow: var(--shadow);
+    transition: all 0.3s;
+    height: 240px;
+    display: flex;
+    flex-direction: column;
+    scroll-snap-align: start;
+}
+
+.sermon-card .card-body {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    overflow: hidden;
+}
+
+.sermon-card .card-body h3 {
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    min-height: 2.8em;
+    line-height: 1.4;
+}
+
+.sermon-card .description {
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+
+.sermon-card:hover {
+    transform: translateY(-5px);
+    box-shadow: var(--shadow-hover);
+}
+
+.sermon-card.clickable-card {
+    cursor: pointer;
+}
+
+.sermon-card.clickable-card:hover {
+    transform: translateY(-8px);
+    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.2);
+}
+
+/* YouTube Shorts Section */
+/* Tab Navigation */
+.content-tabs {
+    background-color: var(--primary-color);
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+}
+
+.tabs-menu {
+    display: flex;
+    justify-content: center;
+    gap: 0;
+}
+
+.tab-item {
+    display: inline-block;
+    padding: 16px 40px;
+    color: rgba(255, 255, 255, 0.75);
+    text-decoration: none;
+    font-size: 1rem;
+    font-weight: 600;
+    transition: all 0.2s;
+    border-bottom: 3px solid transparent;
+    letter-spacing: 0.03em;
+}
+
+.tab-item:hover {
+    color: #fff;
+    border-bottom-color: rgba(255, 255, 255, 0.6);
+    background-color: rgba(255, 255, 255, 0.08);
+}
+
+.shorts-section {
+    background-color: var(--bg-white);
+    padding: 56px 14px;
+}
+
+/* QT Section */
+.qty-section {
+    background-color: var(--bg-light);
+    padding: 56px 14px;
+}
+
+.qty-badge {
+    background-color: #4CAF50 !important;
+}
+
+.shorts-grid {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 1.5rem;
+    max-width: 1400px;
+    margin: 0 auto;
+}
+
+.shorts-card {
+    background-color: var(--bg-white);
+    border-radius: 12px;
+    overflow: hidden;
+    box-shadow: var(--shadow);
+    transition: all 0.3s ease;
+    cursor: pointer;
+    scroll-snap-align: start;
+}
+
+.shorts-card:hover {
+    transform: translateY(-5px);
+    box-shadow: var(--shadow-hover);
+}
+
+.shorts-thumbnail {
+    position: relative;
+    width: 100%;
+    padding-top: 177.78%;
+    /* 9:16 aspect ratio for vertical Shorts */
+    overflow: hidden;
+    background-color: #000;
+}
+
+.shorts-thumbnail img {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    transition: transform 0.3s;
+}
+
+.shorts-card:hover .shorts-thumbnail img {
+    transform: scale(1.05);
+}
+
+.shorts-play-button {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 50px;
+    height: 50px;
+    background-color: rgba(255, 0, 0, 0.8);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.5rem;
+    color: white;
+    transition: all 0.3s;
+}
+
+.shorts-card:hover .shorts-play-button {
+    background-color: rgba(255, 0, 0, 1);
+    transform: translate(-50%, -50%) scale(1.1);
+}
+
+.shorts-badge {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    background-color: rgba(255, 0, 0, 0.9);
+    color: white;
+    padding: 4px 10px;
+    border-radius: 4px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+}
+
+.shorts-title {
+    padding: 0.7rem;
+    background-color: var(--bg-white);
+    min-height: 3.8em;
+    box-sizing: border-box;
+    display: flex;
+    align-items: flex-start;
+}
+
+.shorts-title h4 {
+    font-size: 0.95rem;
+    color: var(--text-dark);
+    margin: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    line-height: 1.4;
+    min-height: 2.8em;
+}
+
+/* Responsive Design for Shorts */
+@media (max-width: 1200px) {
+    .shorts-grid {
+        grid-template-columns: repeat(4, 1fr);
+    }
+}
+
+/* Mobile Responsive */
+@media (max-width: 1024px) {
+    .dual-section {
+        grid-template-columns: 1fr;
+        gap: 2rem;
+    }
+
+    .vision-card .video-thumbnail {
+        padding-top: 56.25%;
+        /* Back to 16:9 on mobile for better fit */
+    }
+
+    .sermon-slider {
+        grid-template-columns: 1fr;
+    }
+
+    .shorts-grid {
+        grid-template-columns: repeat(3, 1fr);
+    }
+}
+
+@media (max-width: 768px) {
+    .worship-schedule {
+        grid-template-columns: 1fr;
+        gap: 1.5rem;
+    }
+
+    .schedule-item {
+        padding: 1.05rem;
+    }
+
+    .shorts-grid {
+        grid-template-columns: repeat(2, 1fr);
+        gap: 1rem;
+    }
+
+    .shorts-section {
+        padding: 35px 11px;
+    }
+
+    .slider-container {
+        padding: 0 40px;
+    }
+
+    .slider-btn {
+        width: 35px;
+        height: 35px;
+        font-size: 1rem;
+    }
+
+    .play-button {
+        width: 50px;
+        height: 50px;
+        font-size: 1.5rem;
+    }
+
+    .vision-card .card-title {
+        font-size: 1.1rem;
+    }
+}
+
+/* About Page Styles */
+.about-page {
+    padding: 70px 14px 56px;
+    background-color: var(--bg-light);
+    min-height: 60vh;
+}
+
+.about-content-main {
+    max-width: 900px;
+    margin: 0 auto;
+}
+
+.vision-section {
+    margin-bottom: 3rem;
+}
+
+.vision-with-image {
+    display: flex;
+    gap: 2rem;
+    align-items: flex-start;
+}
+
+.vision-text {
+    flex: 1;
+    font-size: 1.1rem;
+    line-height: 1.8;
+    color: var(--text-dark);
+}
+
+.vision-images-stack {
+    flex: 0 0 260px;
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+}
+
+.vision-image img {
+    width: 100%;
+    border-radius: 10px;
+    object-fit: cover;
+    box-shadow: var(--shadow-sm);
+}
+
+.mission-section {
+    background-color: var(--bg-white);
+    padding: 2.1rem;
+    border-radius: 12px;
+    box-shadow: var(--shadow);
+}
+
+.mission-section h2 {
+    color: var(--primary-color);
+    font-size: 1.8rem;
+    margin-bottom: 1.5rem;
+    text-align: center;
+}
+
+.mission-with-image {
+    display: flex;
+    gap: 2rem;
+    align-items: flex-start;
+}
+
+.mission-text {
+    flex: 1;
+    font-size: 1.1rem;
+    line-height: 1.8;
+    color: var(--text-dark);
+}
+
+.mission-image {
+    flex: 0 0 260px;
+}
+
+.mission-image img {
+    width: 100%;
+    border-radius: 10px;
+    object-fit: cover;
+}
+
+@media (max-width: 768px) {
+    .about-page {
+        padding: 56px 11px 42px;
+    }
+
+    .vision-section,
+    .mission-section {
+        padding: 1.4rem 1.05rem;
+    }
+
+    .vision-with-image,
+    .mission-with-image {
+        flex-direction: column;
+    }
+
+    .vision-images-stack,
+    .mission-image {
+        flex: none;
+        width: 100%;
+    }
+
+    .vision-text,
+    .mission-text {
+        font-size: 1rem;
+    }
+
+    .mission-section h2 {
+        font-size: 1.5rem;
+    }
+}
+
+@media (max-width: 480px) {
+    section {
+        padding: var(--spacing-xl) 11px;
+    }
+
+    .hero-title {
+        font-size: 1.8rem;
+    }
+
+    .section-header h2 {
+        font-size: 1.5rem;
+    }
+}
+
+/* YouTube Video Modal */
+.video-modal {
+    display: none;
+    position: fixed;
+    z-index: 10000;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.9);
+    align-items: center;
+    justify-content: center;
+}
+
+.video-modal.active {
+    display: flex;
+}
+
+.video-modal-content {
+    position: relative;
+    width: 90%;
+    max-width: 900px;
+}
+
+.video-modal-close {
+    position: absolute;
+    top: -40px;
+    right: 0;
+    color: white;
+    font-size: 35px;
+    font-weight: bold;
+    cursor: pointer;
+    z-index: 10001;
+}
+
+.video-modal-close:hover {
+    color: #ccc;
+}
+
+.video-container {
+    position: relative;
+    padding-bottom: 56.25%;
+    height: 0;
+    overflow: hidden;
+    border-radius: 8px;
+}
+
+.video-container iframe {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+}
+
+/* 숏츠 모드 - 세로 비율 (9:16) */
+.video-modal.shorts-mode .video-modal-content {
+    width: auto;
+    max-width: none;
+    height: 85vh;
+    aspect-ratio: 9 / 16;
+}
+
+.video-modal.shorts-mode .video-container {
+    padding-bottom: 0;
+    height: 100%;
+    width: 100%;
+}
+
+/* 모바일 일반 영상 */
+@media (max-width: 768px) {
+    .video-modal-content {
+        width: 95%;
+    }
+
+    /* 모바일 숏츠: 화면 꽉 채움 */
+    .video-modal.shorts-mode .video-modal-content {
+        height: 90vh;
+    }
+
+    .video-modal.shorts-mode .video-modal-close {
+        top: -35px;
+        right: 5px;
+    }
+}
+
+/* Mobile: 텍스트 좌측 정렬 */
+@media (max-width: 1024px) {
+    .hero {
+        text-align: left;
+    }
+
+    .hero-buttons {
+        justify-content: flex-start;
+    }
+
+    .section-header {
+        text-align: left;
+    }
+
+    .divider {
+        margin: 0;
+    }
+
+    .welcome-text {
+        text-align: left;
+        margin-left: 0;
+        margin-right: 0;
+    }
+
+    .about-item {
+        text-align: left;
+    }
+
+    .detail-item {
+        text-align: left;
+    }
+
+    .contact-item {
+        text-align: left;
+    }
+
+    .map-title {
+        text-align: left;
+    }
+
+    .map-buttons {
+        justify-content: flex-start;
+    }
+
+    .footer-content {
+        text-align: left;
+    }
+
+    .footer-bottom {
+        text-align: left;
+    }
+
+    .mission-section h2 {
+        text-align: left;
+    }
+}
