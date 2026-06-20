@@ -678,12 +678,10 @@ async def _home(request: Request, lang: str = "ko"):
     cur.close()
     conn.close()
     user = get_current_user(request)
-    return templates.TemplateResponse("index.html", {
-        "request": request, "t": t, "lp": lp,
+    return templates.TemplateResponse(request, "index.html", {"t": t, "lp": lp,
         "visions": visions, "sermons": sermons, "shorts": shorts,
         "qtys": qtys, "news_list": news_list,
-        "church_intro": church_intro, "user": user,
-    })
+        "church_intro": church_intro, "user": user})
 
 
 @app.get("/", response_class=HTMLResponse)
@@ -722,7 +720,7 @@ async def _about_page(request: Request, lang: str = "ko"):
         "pastoral_direction": row[3] if row else "",
         "serving_people": row[4] if row else "",
     }
-    return templates.TemplateResponse("about.html", {"request": request, "about": about, "t": t, "lp": lp})
+    return templates.TemplateResponse(request, "about.html", {"about": about, "t": t, "lp": lp})
 
 
 @app.get("/about", response_class=HTMLResponse)
@@ -750,7 +748,7 @@ async def _direction_page(request: Request, lang: str = "ko"):
     cur.close()
     conn.close()
     content = row[0] if row and row[0] else t["direction_preparing"]
-    return templates.TemplateResponse("direction.html", {"request": request, "content": content, "t": t, "lp": lp})
+    return templates.TemplateResponse(request, "direction.html", {"content": content, "t": t, "lp": lp})
 
 
 @app.get("/direction", response_class=HTMLResponse)
@@ -786,9 +784,7 @@ async def _people_page(request: Request, lang: str = "ko"):
     intro = row[0] if row and row[0] else ""
     cur.close()
     conn.close()
-    return templates.TemplateResponse("people.html", {
-        "request": request, "members": members, "intro": intro, "t": t, "lp": lp,
-    })
+    return templates.TemplateResponse(request, "people.html", {"members": members, "intro": intro, "t": t, "lp": lp})
 
 
 @app.get("/people", response_class=HTMLResponse)
@@ -842,10 +838,8 @@ async def _pastoral_list(request: Request, lang: str = "ko", page: int = 1, q: s
     conn.close()
     total_pages = max(1, (total + per_page - 1) // per_page)
     user = get_current_user(request)
-    return templates.TemplateResponse("pastoral_list.html", {
-        "request": request, "posts": posts, "user": user, "t": t, "lp": lp,
-        "page": page, "total_pages": total_pages, "total": total, "q": q,
-    })
+    return templates.TemplateResponse(request, "pastoral_list.html", {"posts": posts, "user": user, "t": t, "lp": lp,
+        "page": page, "total_pages": total_pages, "total": total, "q": q})
 
 
 @app.get("/pastoral", response_class=HTMLResponse)
@@ -909,10 +903,8 @@ async def _pastoral_detail(request: Request, post_id: int, lang: str = "ko"):
     cur.close()
     conn.close()
     user = get_current_user(request)
-    return templates.TemplateResponse("pastoral_detail.html", {
-        "request": request, "post": post, "pastoral_images": pastoral_images,
-        "comments": comments, "user": user, "t": t, "lp": lp,
-    })
+    return templates.TemplateResponse(request, "pastoral_detail.html", {"post": post, "pastoral_images": pastoral_images,
+        "comments": comments, "user": user, "t": t, "lp": lp})
 
 
 @app.get("/pastoral/{post_id}", response_class=HTMLResponse)
@@ -975,11 +967,9 @@ async def _view_news(request: Request, news_id: int, lang: str = "ko"):
     cur.close()
     conn.close()
     user = get_current_user(request)
-    return templates.TemplateResponse("news_detail.html", {
-        "request": request, "news": news, "news_images": news_images,
+    return templates.TemplateResponse(request, "news_detail.html", {"news": news, "news_images": news_images,
         "comments": comments, "user": user, "is_admin": user and user.get("role") == "admin",
-        "t": t, "lp": lp,
-    })
+        "t": t, "lp": lp})
 
 
 @app.get("/news/{news_id}", response_class=HTMLResponse)
@@ -1002,28 +992,28 @@ async def view_news_en(request: Request, news_id: int):
 async def login_page(request: Request):
     if not getattr(request.state, "tenant", None):
         raise HTTPException(404)
-    return templates.TemplateResponse("login.html", {"request": request, "t": get_t("ko"), "lp": ""})
+    return templates.TemplateResponse(request, "login.html", {"t": get_t("ko"), "lp": ""})
 
 
 @app.get("/en/login", response_class=HTMLResponse)
 async def login_page_en(request: Request):
     if not getattr(request.state, "tenant", None):
         raise HTTPException(404)
-    return templates.TemplateResponse("login.html", {"request": request, "t": get_t("en"), "lp": "/en"})
+    return templates.TemplateResponse(request, "login.html", {"t": get_t("en"), "lp": "/en"})
 
 
 @app.get("/register", response_class=HTMLResponse)
 async def register_page(request: Request):
     if not getattr(request.state, "tenant", None):
         raise HTTPException(404)
-    return templates.TemplateResponse("register.html", {"request": request, "t": get_t("ko"), "lp": ""})
+    return templates.TemplateResponse(request, "register.html", {"t": get_t("ko"), "lp": ""})
 
 
 @app.get("/en/register", response_class=HTMLResponse)
 async def register_page_en(request: Request):
     if not getattr(request.state, "tenant", None):
         raise HTTPException(404)
-    return templates.TemplateResponse("register.html", {"request": request, "t": get_t("en"), "lp": "/en"})
+    return templates.TemplateResponse(request, "register.html", {"t": get_t("en"), "lp": "/en"})
 
 
 async def _register_post(request: Request, lang: str, name: str, email: str):
@@ -1036,18 +1026,14 @@ async def _register_post(request: Request, lang: str, name: str, email: str):
     if not re.match(r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$", email):
         errors.append(t["err_email_invalid"])
     if errors:
-        return templates.TemplateResponse("register.html", {
-            "request": request, "errors": errors, "t": t, "lp": lp, "name": name, "email": email,
-        })
+        return templates.TemplateResponse(request, "register.html", {"errors": errors, "t": t, "lp": lp, "name": name, "email": email})
     conn = get_conn()
     cur = conn.cursor()
     cur.execute("SELECT id FROM users WHERE email=%s AND tenant_id=%s", (email, tenant_id))
     if cur.fetchone():
         cur.close()
         conn.close()
-        return templates.TemplateResponse("register.html", {
-            "request": request, "errors": [t["err_email_taken"]], "t": t, "lp": lp, "name": name, "email": email,
-        })
+        return templates.TemplateResponse(request, "register.html", {"errors": [t["err_email_taken"]], "t": t, "lp": lp, "name": name, "email": email})
     temp_pw = secrets.token_urlsafe(8)
     cur.execute(
         "INSERT INTO users (tenant_id, username, password, role, name, email, created_at) VALUES (%s, %s, %s, 'user', %s, %s, NOW())",
@@ -1060,7 +1046,7 @@ async def _register_post(request: Request, lang: str, name: str, email: str):
         msg = f"가입이 완료되었습니다. 임시 비밀번호: <b>{temp_pw}</b><br>로그인 후 비밀번호를 변경해 주세요."
     else:
         msg = f"Registration successful. Temporary password: <b>{temp_pw}</b><br>Please change your password after logging in."
-    return templates.TemplateResponse("login.html", {"request": request, "t": t, "lp": lp, "success": msg})
+    return templates.TemplateResponse(request, "login.html", {"t": t, "lp": lp, "success": msg})
 
 
 @app.post("/register")
@@ -1087,7 +1073,7 @@ async def _login_post(request: Request, lang: str, username: str, password: str)
     if not row:
         cur.close()
         conn.close()
-        return templates.TemplateResponse("login.html", {"request": request, "error": t["login_error"], "t": t, "lp": lp})
+        return templates.TemplateResponse(request, "login.html", {"error": t["login_error"], "t": t, "lp": lp})
 
     stored = row[2]
     valid = False
@@ -1100,7 +1086,7 @@ async def _login_post(request: Request, lang: str, username: str, password: str)
     if not valid:
         cur.close()
         conn.close()
-        return templates.TemplateResponse("login.html", {"request": request, "error": t["login_error"], "t": t, "lp": lp})
+        return templates.TemplateResponse(request, "login.html", {"error": t["login_error"], "t": t, "lp": lp})
 
     token = secrets.token_urlsafe(32)
     tenant_info = request.state.tenant or {}
@@ -1268,13 +1254,11 @@ async def admin_dashboard(request: Request, user: dict = Depends(require_manager
 
     cur.close()
     conn.close()
-    return templates.TemplateResponse("admin.html", {
-        "request": request, "t": get_t("ko"), "lp": "", "user": user,
+    return templates.TemplateResponse(request, "admin.html", {"t": get_t("ko"), "lp": "", "user": user,
         "visions": visions, "sermons": sermons, "shorts": shorts, "qtys": qtys,
         "news_list": news_list, "church_intro": church_intro, "about": about,
         "pastoral_posts": pastoral_posts, "members": members, "site_users": site_users,
-        "bulletins": bulletins, "offering_links": offering_links,
-    })
+        "bulletins": bulletins, "offering_links": offering_links})
 
 
 # ─── Admin: User management (owner only) ─────────────────────────────────────
@@ -1386,8 +1370,8 @@ async def edit_news_form(request: Request, news_id: int, user: dict = Depends(re
     conn.close()
     if not row:
         raise HTTPException(404)
-    return templates.TemplateResponse("news_edit.html", {
-        "request": request, "news": {"id": row[0], "title": row[1], "content": row[2], "date": row[3]}, "user": user,
+    return templates.TemplateResponse(request, "news_edit.html", {
+        "news": {"id": row[0], "title": row[1], "content": row[2], "date": row[3]}, "user": user,
     })
 
 
@@ -2071,8 +2055,7 @@ async def pastoral_dashboard(request: Request, user: dict = Depends(require_owne
     counsel_count = cur.fetchone()[0]
     cur.close(); conn.close()
 
-    return templates.TemplateResponse("pastoral_dashboard.html", {
-        "request": request,
+    return templates.TemplateResponse(request, "pastoral_dashboard.html", {
         "tenant": {"church_name": user.get("church_name", "")},
         "members": members, "alerts": alerts, "e2ee_salt": salt,
         "is_first_setup": is_first,
@@ -2087,7 +2070,7 @@ async def pastoral_members_redirect(user: dict = Depends(require_owner)):
 
 @app.get("/pastoral/members/new", response_class=HTMLResponse)
 async def pastoral_member_new(request: Request, user: dict = Depends(require_owner)):
-    return templates.TemplateResponse("pastoral_member_new.html", {"request": request})
+    return templates.TemplateResponse(request, "pastoral_member_new.html")
 
 
 @app.post("/pastoral/members/create")
@@ -2136,10 +2119,8 @@ async def pastoral_member_detail(member_id: int, request: Request, user: dict = 
     logs = [{"id": r[0], "encrypted_content": r[1], "iv": r[2], "created_at": str(r[3])[:16]} for r in cur.fetchall()]
     cur.close(); conn.close()
     from datetime import date
-    return templates.TemplateResponse("pastoral_member.html", {
-        "request": request, "member": member, "e2ee_salt": salt,
-        "logs_json": _json.dumps(logs), "today": str(date.today()),
-    })
+    return templates.TemplateResponse(request, "pastoral_member.html", {"member": member, "e2ee_salt": salt,
+        "logs_json": _json.dumps(logs), "today": str(date.today())})
 
 
 @app.post("/pastoral/members/update/{member_id}")
@@ -2248,10 +2229,8 @@ async def pastoral_donations(request: Request, year: int = 0, user: dict = Depen
     cur.execute("SELECT id, name FROM congregation_members WHERE tenant_id=%s ORDER BY name", (tenant_id,))
     members = [{"id": r[0], "name": r[1]} for r in cur.fetchall()]
     cur.close(); conn.close()
-    return templates.TemplateResponse("pastoral_donations.html", {
-        "request": request, "receipts": receipts, "total_amount": total_amount,
-        "current_year": current_year, "years": years_rows, "members": members,
-    })
+    return templates.TemplateResponse(request, "pastoral_donations.html", {"receipts": receipts, "total_amount": total_amount,
+        "current_year": current_year, "years": years_rows, "members": members})
 
 
 @app.post("/pastoral/donations/create")
