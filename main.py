@@ -420,10 +420,28 @@ def get_current_user(request: Request) -> Optional[dict]:
     return session
 
 
+ADMIN_ROLES = {"owner", "admin"}
+MANAGER_ROLES = {"owner", "admin", "manager"}
+
+
 def require_admin(request: Request):
     user = get_current_user(request)
-    if not user or user["role"] != "admin":
+    if not user or user["role"] not in ADMIN_ROLES:
         raise HTTPException(status_code=403, detail="Admin access required")
+    return user
+
+
+def require_owner(request: Request):
+    user = get_current_user(request)
+    if not user or user["role"] != "owner":
+        raise HTTPException(status_code=403, detail="Owner access required")
+    return user
+
+
+def require_manager(request: Request):
+    user = get_current_user(request)
+    if not user or user["role"] not in MANAGER_ROLES:
+        raise HTTPException(status_code=403, detail="Manager access required")
     return user
 
 
@@ -1088,7 +1106,7 @@ async def _login_post(request: Request, lang: str, username: str, password: str)
     sessions[token] = {"id": row[0], "username": row[1], "role": row[3], "tenant_id": tenant_id}
     cur.close()
     conn.close()
-    response = RedirectResponse(url="/admin" if row[3] == "admin" else f"{lp}/", status_code=303)
+    response = RedirectResponse(url="/admin" if row[3] in MANAGER_ROLES else f"{lp}/", status_code=303)
     response.set_cookie(key="session_token", value=token, httponly=True, samesite="lax")
     return response
 
@@ -1185,7 +1203,7 @@ async def delete_comment(request: Request, comment_id: int, redirect: str = "/")
 # ─── Admin dashboard ─────────────────────────────────────────────────────────
 
 @app.get("/admin", response_class=HTMLResponse)
-async def admin_dashboard(request: Request, user: dict = Depends(require_admin)):
+async def admin_dashboard(request: Request, user: dict = Depends(require_manager)):
     tenant_id = user["tenant_id"]
     conn = get_conn()
     cur = conn.cursor()
@@ -1235,14 +1253,83 @@ async def admin_dashboard(request: Request, user: dict = Depends(require_admin))
     cur.execute("SELECT id, name, role, bio, photo_path, display_order FROM members WHERE tenant_id=%s ORDER BY display_order ASC, id ASC", (tenant_id,))
     members = [{"id": r[0], "name": r[1], "role": r[2], "bio": r[3], "photo_path": r[4], "display_order": r[5]} for r in cur.fetchall()]
 
+    site_users = []
+    if user["role"] == "owner":
+        cur.execute("SELECT id, username, name, role, email, created_at FROM users WHERE tenant_id=%s ORDER BY created_at ASC", (tenant_id,))
+        site_users = [{"id": r[0], "username": r[1], "name": r[2], "role": r[3], "email": r[4], "created_at": r[5]} for r in cur.fetchall()]
+
     cur.close()
     conn.close()
     return templates.TemplateResponse("admin.html", {
         "request": request, "t": get_t("ko"), "lp": "", "user": user,
         "visions": visions, "sermons": sermons, "shorts": shorts, "qtys": qtys,
         "news_list": news_list, "church_intro": church_intro, "about": about,
-        "pastoral_posts": pastoral_posts, "members": members,
+        "pastoral_posts": pastoral_posts, "members": members, "site_users": site_users,
     })
+
+
+# ─── Admin: User management (owner only) ─────────────────────────────────────
+
+@app.post("/admin/users/invite")
+async def create_site_user(
+    request: Request,
+    username: str = Form(...), name: str = Form(...),
+    role: str = Form(...), password: str = Form(...),
+    user: dict = Depends(require_owner),
+):
+    tenant_id = user["tenant_id"]
+    if role not in ("admin", "manager", "user"):
+        raise HTTPException(400, "유효하지 않은 역할입니다.")
+    if len(password) < 6:
+        raise HTTPException(400, "비밀번호는 6자 이상이어야 합니다.")
+    conn = get_conn()
+    cur = conn.cursor()
+    try:
+        cur.execute(
+            "INSERT INTO users (tenant_id, username, password, role, name, email, created_at) VALUES (%s,%s,%s,%s,%s,'',NOW())",
+            (tenant_id, username, hash_password(password), role, name),
+        )
+        conn.commit()
+    except psycopg2.errors.UniqueViolation:
+        conn.rollback()
+        raise HTTPException(409, "이미 사용 중인 아이디입니다.")
+    finally:
+        cur.close()
+        conn.close()
+    return RedirectResponse(url="/admin#users", status_code=303)
+
+
+@app.post("/admin/users/role/{user_id}")
+async def change_user_role(
+    user_id: int, role: str = Form(...),
+    user: dict = Depends(require_owner),
+):
+    tenant_id = user["tenant_id"]
+    if role not in ("admin", "manager", "user"):
+        raise HTTPException(400, "유효하지 않은 역할입니다.")
+    if user_id == user["id"]:
+        raise HTTPException(400, "자기 자신의 역할은 변경할 수 없습니다.")
+    conn = get_conn()
+    cur = conn.cursor()
+    cur.execute("UPDATE users SET role=%s WHERE id=%s AND tenant_id=%s", (role, user_id, tenant_id))
+    conn.commit()
+    cur.close()
+    conn.close()
+    return RedirectResponse(url="/admin#users", status_code=303)
+
+
+@app.post("/admin/users/delete/{user_id}")
+async def delete_site_user(user_id: int, user: dict = Depends(require_owner)):
+    tenant_id = user["tenant_id"]
+    if user_id == user["id"]:
+        raise HTTPException(400, "자기 자신은 삭제할 수 없습니다.")
+    conn = get_conn()
+    cur = conn.cursor()
+    cur.execute("DELETE FROM users WHERE id=%s AND tenant_id=%s AND role != 'owner'", (user_id, tenant_id))
+    conn.commit()
+    cur.close()
+    conn.close()
+    return RedirectResponse(url="/admin#users", status_code=303)
 
 
 # ─── Admin: News ─────────────────────────────────────────────────────────────
@@ -1252,7 +1339,7 @@ async def create_news(
     request: Request,
     title: str = Form(...), content: str = Form(...),
     images: List[UploadFile] = File(default=[]),
-    user: dict = Depends(require_admin),
+    user: dict = Depends(require_manager),
 ):
     tenant_id = user["tenant_id"]
     upload_dir = get_upload_dir(tenant_id)
@@ -1280,7 +1367,7 @@ async def create_news(
 
 
 @app.get("/admin/news/edit/{news_id}", response_class=HTMLResponse)
-async def edit_news_form(request: Request, news_id: int, user: dict = Depends(require_admin)):
+async def edit_news_form(request: Request, news_id: int, user: dict = Depends(require_manager)):
     tenant_id = user["tenant_id"]
     conn = get_conn()
     cur = conn.cursor()
@@ -1300,7 +1387,7 @@ async def update_news(
     request: Request, news_id: int,
     title: str = Form(...), content: str = Form(...),
     images: List[UploadFile] = File(default=[]),
-    user: dict = Depends(require_admin),
+    user: dict = Depends(require_manager),
 ):
     tenant_id = user["tenant_id"]
     upload_dir = get_upload_dir(tenant_id)
@@ -1327,7 +1414,7 @@ async def update_news(
 
 
 @app.post("/admin/news/delete/{news_id}")
-async def delete_news(news_id: int, user: dict = Depends(require_admin)):
+async def delete_news(news_id: int, user: dict = Depends(require_manager)):
     tenant_id = user["tenant_id"]
     conn = get_conn()
     cur = conn.cursor()
@@ -1596,7 +1683,7 @@ async def delete_member(member_id: int, user: dict = Depends(require_admin)):
 async def create_pastoral(
     request: Request, title: str = Form(...), content: str = Form(...),
     images: List[UploadFile] = File(default=[]),
-    user: dict = Depends(require_admin),
+    user: dict = Depends(require_manager),
 ):
     tenant_id = user["tenant_id"]
     upload_dir = get_upload_dir(tenant_id)
@@ -1632,7 +1719,7 @@ async def update_pastoral(
     request: Request, post_id: int,
     title: str = Form(...), content: str = Form(...),
     images: List[UploadFile] = File(default=[]),
-    user: dict = Depends(require_admin),
+    user: dict = Depends(require_manager),
 ):
     tenant_id = user["tenant_id"]
     upload_dir = get_upload_dir(tenant_id)
@@ -1678,7 +1765,7 @@ async def update_pastoral(
 
 
 @app.post("/admin/pastoral/delete/{post_id}")
-async def delete_pastoral(post_id: int, user: dict = Depends(require_admin)):
+async def delete_pastoral(post_id: int, user: dict = Depends(require_manager)):
     tenant_id = user["tenant_id"]
     conn = get_conn()
     cur = conn.cursor()
@@ -1695,7 +1782,7 @@ async def delete_pastoral(post_id: int, user: dict = Depends(require_admin)):
 
 @app.post("/admin/upload-image")
 async def upload_image(
-    request: Request, image: UploadFile = File(...), user: dict = Depends(require_admin),
+    request: Request, image: UploadFile = File(...), user: dict = Depends(require_manager),
 ):
     tenant_id = user["tenant_id"]
     if not image.filename:
