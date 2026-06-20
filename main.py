@@ -1874,7 +1874,7 @@ search();
 ARTICLE_HTML_TEMPLATE = """<!DOCTYPE html>
 <html lang="ko"><head><meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>{title} — 목회자 라운지</title>
+<title>__TITLE__ — 목회자 라운지</title>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 body{font-family:'Segoe UI',sans-serif;background:#0f172a;color:#f1f5f9;min-height:100vh}
@@ -1894,10 +1894,10 @@ h1{font-size:1.6rem;line-height:1.4;margin-bottom:12px}
   <a href="/platform/lounge">← 라운지로</a>
 </header>
 <div class="main">
-  <h1>{title}</h1>
-  <div class="meta"><span class="author">{author}</span><span>{created_at}</span></div>
-  {tags_html}
-  <div class="content">{content}</div>
+  <h1>__TITLE__</h1>
+  <div class="meta"><span class="author">__AUTHOR__</span><span>__DATE__</span></div>
+  __TAGS__
+  <div class="content">__CONTENT__</div>
 </div>
 </body></html>"""
 
@@ -2024,19 +2024,20 @@ async def platform_article_detail(article_id: str, request: Request):
         return RedirectResponse("/platform/login", status_code=302)
     try:
         doc = es.get(index=ES_INDEX, id=article_id)
-        src = doc["_source"]
-        tags_html = ""
-        if src.get("tags"):
-            tags_html = '<div class="tags-list">' + "".join(f'<span class="tag-sm">{t}</span>' for t in src["tags"]) + "</div>"
-        return HTMLResponse(ARTICLE_HTML_TEMPLATE.format(
-            title=src.get("title", ""),
-            author=src.get("author", ""),
-            created_at=str(src.get("created_at", ""))[:10],
-            tags_html=tags_html,
-            content=src.get("content", ""),
-        ))
     except Exception:
         raise HTTPException(404, "아티클을 찾을 수 없습니다.")
+    src = doc["_source"]
+    tags_html = ""
+    if src.get("tags"):
+        tags_html = '<div class="tags-list">' + "".join(f'<span class="tag-sm">{t}</span>' for t in src["tags"]) + "</div>"
+    html = (ARTICLE_HTML_TEMPLATE
+        .replace("__TITLE__", src.get("title", ""))
+        .replace("__AUTHOR__", src.get("author", ""))
+        .replace("__DATE__", str(src.get("created_at", ""))[:10])
+        .replace("__TAGS__", tags_html)
+        .replace("__CONTENT__", src.get("content", ""))
+    )
+    return HTMLResponse(html)
 
 
 # ─── Platform Admin: Article CRUD ────────────────────────────────────────────
