@@ -7,3 +7,4 @@ bcrypt
 python-dotenv
 aiofiles
 pydantic
+elasticsearch>=8.0.0,<10.0.0

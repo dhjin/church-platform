@@ -145,3 +145,14 @@ CREATE INDEX IF NOT EXISTS idx_visions_tenant ON visions(tenant_id);
 CREATE INDEX IF NOT EXISTS idx_shorts_tenant ON shorts(tenant_id);
 CREATE INDEX IF NOT EXISTS idx_qtys_tenant ON qtys(tenant_id);
 CREATE INDEX IF NOT EXISTS idx_members_tenant ON members(tenant_id);
+
+CREATE TABLE IF NOT EXISTS invite_codes (
+    id SERIAL PRIMARY KEY,
+    code TEXT UNIQUE NOT NULL,
+    note TEXT DEFAULT '',
+    used_at TIMESTAMP,
+    used_by_tenant_id INTEGER REFERENCES tenants(id) ON DELETE SET NULL,
+    created_at TIMESTAMP DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_invite_codes_code ON invite_codes(code);

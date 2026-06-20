@@ -139,6 +139,13 @@ spec:
         env:
         - name: DATABASE_URL
           value: "postgresql://church_platform:ChurchPlatform2026!@church-platform-postgres:5432/church_platform"
+        - name: PLATFORM_ADMIN_KEY
+          valueFrom:
+            secretKeyRef:
+              name: church-platform-secret
+              key: PLATFORM_ADMIN_KEY
+        - name: ES_URL
+          value: "http://elasticsearch.default.svc.cluster.local:9200"
         volumeMounts:
         - name: uploads
           mountPath: /app/uploads

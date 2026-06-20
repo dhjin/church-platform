@@ -16,6 +16,8 @@ from typing import Optional, List
 from pydantic import BaseModel
 from dotenv import load_dotenv
 
+from elasticsearch import Elasticsearch
+
 from database import get_conn
 from middleware import TenantMiddleware
 
@@ -32,50 +34,187 @@ UPLOAD_BASE = Path("uploads")
 UPLOAD_BASE.mkdir(exist_ok=True)
 
 sessions: dict = {}
+platform_sessions: dict = {}
+
+ES_URL = os.getenv("ES_URL", "http://elasticsearch:9200")
+es = Elasticsearch(ES_URL)
+ES_INDEX = "theology_articles"
 
 LANDING_HTML = """<!DOCTYPE html>
 <html lang="ko"><head><meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>교회 플랫폼</title>
+<title>교회 플랫폼 — 30일 무료 시작</title>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
-body{font-family:'Segoe UI',sans-serif;background:#f0f4f8;color:#333}
-.hero{background:linear-gradient(135deg,#1e3a5f,#2d6a9f);color:#fff;padding:80px 20px;text-align:center}
-.hero h1{font-size:2.5rem;margin-bottom:1rem}
-.hero p{font-size:1.1rem;opacity:.9;margin-bottom:2rem}
-.features{max-width:900px;margin:60px auto;padding:0 20px;display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:24px}
-.card{background:#fff;border-radius:10px;padding:28px;box-shadow:0 2px 10px rgba(0,0,0,.08)}
-.card h3{color:#1e3a5f;margin-bottom:.5rem}
-.api{max-width:700px;margin:0 auto 60px;padding:0 20px}
-pre{background:#1e293b;color:#e2e8f0;padding:24px;border-radius:10px;overflow-x:auto;font-size:.85rem;line-height:1.6}
-.footer{text-align:center;padding:40px 20px;color:#888;font-size:.9rem}
+body{font-family:'Segoe UI',Tahoma,sans-serif;background:#f0f4f8;color:#333}
+.hero{background:linear-gradient(135deg,#1e3a5f,#2d6a9f);color:#fff;padding:64px 20px 48px;text-align:center}
+.hero h1{font-size:2.2rem;margin-bottom:.8rem}
+.hero p{font-size:1.05rem;opacity:.9;margin-bottom:0}
+.features{max-width:860px;margin:40px auto 0;padding:0 20px;display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:16px}
+.card{background:rgba(255,255,255,.12);border-radius:10px;padding:20px;text-align:center}
+.card h3{font-size:.95rem;margin-top:.4rem}
+.card .icon{font-size:1.6rem}
+.section{max-width:520px;margin:48px auto;padding:0 20px}
+.section h2{font-size:1.3rem;color:#1e3a5f;margin-bottom:4px}
+.section p.sub{font-size:.88rem;color:#666;margin-bottom:24px}
+.form-wrap{background:#fff;border-radius:14px;padding:32px;box-shadow:0 4px 20px rgba(0,0,0,.08)}
+.field{margin-bottom:18px}
+label{display:block;font-size:.82rem;font-weight:600;color:#555;margin-bottom:6px}
+input{width:100%;padding:10px 12px;border:1.5px solid #d1d9e0;border-radius:8px;font-size:.95rem;outline:none;transition:border .2s}
+input:focus{border-color:#2d6a9f}
+input.error{border-color:#e53e3e}
+.slug-wrap{display:flex;align-items:center;gap:0}
+.slug-pre{background:#f0f4f8;border:1.5px solid #d1d9e0;border-right:none;border-radius:8px 0 0 8px;padding:10px 10px;font-size:.8rem;color:#888;white-space:nowrap}
+.slug-wrap input{border-radius:0 8px 8px 0;border-left:none}
+.slug-suf{background:#f0f4f8;border:1.5px solid #d1d9e0;border-left:none;border-radius:0 8px 8px 0;padding:10px 8px;font-size:.78rem;color:#888;white-space:nowrap}
+.slug-wrap2{display:flex;align-items:center}
+.slug-wrap2 input{border-radius:8px 0 0 8px}
+.divider{border:none;border-top:1px solid #eee;margin:22px 0}
+.btn{width:100%;padding:13px;background:#1e3a5f;color:#fff;border:none;border-radius:8px;font-size:1rem;font-weight:600;cursor:pointer;transition:background .2s;margin-top:4px}
+.btn:hover{background:#2d6a9f}
+.btn:disabled{background:#aaa;cursor:not-allowed}
+.msg{margin-top:16px;padding:12px 16px;border-radius:8px;font-size:.9rem;display:none}
+.msg.success{background:#e6f4ea;color:#1a6b2e;display:block}
+.msg.error{background:#fde8e8;color:#9b1c1c;display:block}
+.msg a{color:#1e3a5f;font-weight:600}
+.hint{font-size:.78rem;color:#888;margin-top:4px}
+.footer{text-align:center;padding:32px 20px;color:#999;font-size:.82rem}
 </style></head><body>
-<div class="hero">
-  <h1>&#9997; 교회 플랫폼</h1>
-  <p>귀 교회만의 웹사이트를 지금 시작하세요.<br>설교 · 교회소식 · 목양의 창 — 모두 한곳에.</p>
-</div>
-<div class="features">
-  <div class="card"><h3>✅ 전용 서브도메인</h3><p>sejong.our-church.kr 처럼 교회 고유 주소 제공.</p></div>
-  <div class="card"><h3>✅ 설교·영상 관리</h3><p>YouTube 설교, 숏츠, QT 영상을 간편 등록.</p></div>
-  <div class="card"><h3>✅ 소식 &amp; 목양의 창</h3><p>공지, 목회자 편지, 댓글 기능.</p></div>
-  <div class="card"><h3>✅ 30일 무료 체험</h3><p>카드 없이 즉시 시작.</p></div>
-</div>
-<div class="api">
-  <h2 style="margin-bottom:16px;color:#1e3a5f">교회 등록 API</h2>
-  <pre>POST /api/register-tenant
-Content-Type: application/json
 
-{
-  "slug": "sejong",
-  "church_name": "세종침례교회",
-  "pastor_name": "홍길동",
-  "phone": "010-1234-5678",
-  "address": "세종시 ...",
-  "admin_username": "admin",
-  "admin_password": "password123"
-}</pre>
+<div class="hero">
+  <h1>✝ 교회 플랫폼</h1>
+  <p>귀 교회만의 웹사이트를 30일 무료로 시작하세요</p>
+  <div class="features">
+    <div class="card"><div class="icon">🌐</div><h3>전용 서브도메인</h3></div>
+    <div class="card"><div class="icon">🎬</div><h3>설교·영상 관리</h3></div>
+    <div class="card"><div class="icon">📰</div><h3>소식 &amp; 목양의 창</h3></div>
+    <div class="card"><div class="icon">💝</div><h3>온라인 헌금 연동</h3></div>
+  </div>
 </div>
-<div class="footer"><p>&copy; 2026 Church Platform SaaS</p></div>
+
+<div class="section">
+  <h2>교회 등록</h2>
+  <p class="sub">카드 없이 즉시 시작 · 30일 무료 체험</p>
+  <div class="form-wrap">
+    <div class="field">
+      <label>교회명 *</label>
+      <input id="church_name" type="text" placeholder="세종침례교회">
+    </div>
+    <div class="field">
+      <label>웹사이트 주소 (slug) *</label>
+      <div class="slug-wrap2">
+        <input id="slug" type="text" placeholder="sejong" style="border-radius:8px 0 0 8px">
+        <div class="slug-suf">.thechurch-plus.org</div>
+      </div>
+      <div class="hint">소문자·숫자·하이픈만 사용 (예: sejong-church)</div>
+    </div>
+    <div class="field">
+      <label>담임목사명</label>
+      <input id="pastor_name" type="text" placeholder="홍길동">
+    </div>
+    <div class="field">
+      <label>연락처</label>
+      <input id="phone" type="text" placeholder="010-1234-5678">
+    </div>
+    <div class="field">
+      <label>주소</label>
+      <input id="address" type="text" placeholder="세종시 조치원읍 ...">
+    </div>
+    <hr class="divider">
+    <div class="field">
+      <label>관리자 아이디 *</label>
+      <input id="admin_username" type="text" placeholder="admin">
+    </div>
+    <div class="field">
+      <label>관리자 비밀번호 * <span style="font-weight:400">(8자 이상)</span></label>
+      <input id="admin_password" type="password" placeholder="••••••••">
+    </div>
+    <div class="field">
+      <label>비밀번호 확인 *</label>
+      <input id="admin_password2" type="password" placeholder="••••••••">
+    </div>
+    <div class="field">
+      <label>초대 코드 *</label>
+      <input id="invite_code" type="text" placeholder="운영자에게 발급받은 코드 입력">
+    </div>
+    <button class="btn" id="submitBtn" onclick="submitForm()">30일 무료 시작하기</button>
+    <div class="msg" id="msg"></div>
+  </div>
+</div>
+
+<div class="section" style="margin-top:0;margin-bottom:32px">
+  <div class="form-wrap" style="background:#f8fafc;box-shadow:none;border:1.5px solid #e2e8f0">
+    <h3 style="color:#1e3a5f;margin-bottom:12px;font-size:1rem">서비스 이용 안내</h3>
+    <ul style="font-size:.85rem;color:#555;line-height:1.9;padding-left:1.2em">
+      <li><b>기본 도메인:</b> <code>{slug}.thechurch-plus.org</code> — 무료 제공</li>
+      <li><b>독립 도메인 사용 시:</b> 도메인 구매·갱신 비용은 별도 부담 (연 단위, 도메인 종류에 따라 상이)</li>
+      <li><b>월 구독료:</b> 30일 무료 체험 후 월 19,000원</li>
+      <li><b>초대 코드:</b> 현재 초대 코드를 받은 교회만 등록 가능합니다. 문의: 운영자에게 연락해 주세요.</li>
+    </ul>
+  </div>
+</div>
+
+<div class="footer">
+  <p>이미 등록하셨나요? <a href="#" onclick="goLogin()" style="color:#1e3a5f;font-weight:600">내 교회 사이트로 이동 →</a></p>
+  <p style="margin-top:8px">&copy; 2026 Church Platform · 월 19,000원 구독 (30일 무료 후)</p>
+</div>
+
+<script>
+function goLogin() {
+  const slug = prompt('교회 slug를 입력하세요 (예: sejong):');
+  if (slug) location.href = 'https://' + slug.trim() + '.thechurch-plus.org/login';
+}
+
+async function submitForm() {
+  const btn = document.getElementById('submitBtn');
+  const msg = document.getElementById('msg');
+  msg.className = 'msg'; msg.style.display = 'none';
+
+  const church_name = document.getElementById('church_name').value.trim();
+  const slug = document.getElementById('slug').value.trim().toLowerCase();
+  const pastor_name = document.getElementById('pastor_name').value.trim();
+  const phone = document.getElementById('phone').value.trim();
+  const address = document.getElementById('address').value.trim();
+  const admin_username = document.getElementById('admin_username').value.trim();
+  const admin_password = document.getElementById('admin_password').value;
+  const admin_password2 = document.getElementById('admin_password2').value;
+  const invite_code = document.getElementById('invite_code').value.trim();
+
+  if (!church_name || !slug || !admin_username || !admin_password || !invite_code) {
+    msg.className = 'msg error'; msg.textContent = '필수 항목(*)을 모두 입력해주세요.'; return;
+  }
+  if (!/^[a-z0-9][a-z0-9-]{1,28}[a-z0-9]$/.test(slug)) {
+    msg.className = 'msg error'; msg.textContent = 'slug는 소문자·숫자·하이픈 3~30자, 영숫자로 시작·끝나야 합니다.'; return;
+  }
+  if (admin_password.length < 8) {
+    msg.className = 'msg error'; msg.textContent = '비밀번호는 8자 이상이어야 합니다.'; return;
+  }
+  if (admin_password !== admin_password2) {
+    msg.className = 'msg error'; msg.textContent = '비밀번호가 일치하지 않습니다.'; return;
+  }
+
+  btn.disabled = true; btn.textContent = '등록 중...';
+  try {
+    const res = await fetch('/api/register-tenant', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({slug, church_name, pastor_name, phone, address, admin_username, admin_password, invite_code})
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      msg.className = 'msg error'; msg.textContent = data.detail || '등록 실패. 다시 시도해주세요.';
+    } else {
+      const url = 'https://' + slug + '.thechurch-plus.org';
+      msg.className = 'msg success';
+      msg.innerHTML = '🎉 등록 완료! <a href="' + url + '">' + url + '</a> 에서 지금 바로 시작하세요.';
+    }
+  } catch(e) {
+    msg.className = 'msg error'; msg.textContent = '네트워크 오류. 잠시 후 다시 시도해주세요.';
+  } finally {
+    btn.disabled = false; btn.textContent = '30일 무료 시작하기';
+  }
+}
+</script>
 </body></html>"""
 
 TRANSLATIONS = {
@@ -306,6 +445,15 @@ async def startup_event():
 
 # ─── Tenant registration ──────────────────────────────────────────────────────
 
+PLATFORM_ADMIN_KEY = os.getenv("PLATFORM_ADMIN_KEY", "")
+
+
+def require_platform_admin(request: Request):
+    key = request.headers.get("X-Admin-Key", "")
+    if not PLATFORM_ADMIN_KEY or key != PLATFORM_ADMIN_KEY:
+        raise HTTPException(403, "Forbidden")
+
+
 class TenantRegisterRequest(BaseModel):
     slug: str
     church_name: str
@@ -314,6 +462,7 @@ class TenantRegisterRequest(BaseModel):
     address: Optional[str] = None
     admin_username: str
     admin_password: str
+    invite_code: str
 
 
 @app.post("/api/register-tenant")
@@ -323,10 +472,21 @@ async def register_tenant(data: TenantRegisterRequest):
     if len(data.admin_password) < 8:
         raise HTTPException(400, "비밀번호는 8자 이상이어야 합니다.")
 
-    trial_ends = datetime.now() + timedelta(days=30)
     conn = get_conn()
     cur = conn.cursor()
     try:
+        cur.execute(
+            "SELECT id, used_at FROM invite_codes WHERE code = %s",
+            (data.invite_code.strip(),),
+        )
+        row = cur.fetchone()
+        if not row:
+            raise HTTPException(400, "유효하지 않은 초대 코드입니다.")
+        if row[1] is not None:
+            raise HTTPException(400, "이미 사용된 초대 코드입니다.")
+        invite_id = row[0]
+
+        trial_ends = datetime.now() + timedelta(days=30)
         cur.execute(
             """
             INSERT INTO tenants (slug, church_name, pastor_name, phone, address, trial_ends_at)
@@ -356,11 +516,67 @@ async def register_tenant(data: TenantRegisterRequest):
             """,
             (tenant_id, f"{data.church_name}의 비전"),
         )
+        cur.execute(
+            "UPDATE invite_codes SET used_at = NOW(), used_by_tenant_id = %s WHERE id = %s",
+            (tenant_id, invite_id),
+        )
         conn.commit()
         return {"tenant_id": tenant_id, "slug": data.slug, "trial_ends_at": trial_ends.isoformat()}
     except psycopg2.errors.UniqueViolation:
         conn.rollback()
         raise HTTPException(409, f"슬러그 '{data.slug}'는 이미 사용 중입니다.")
+    finally:
+        cur.close()
+        conn.close()
+
+
+class InviteCodeCreateRequest(BaseModel):
+    note: Optional[str] = ""
+    count: Optional[int] = 1
+
+
+@app.post("/api/admin/invite-codes")
+async def create_invite_codes(data: InviteCodeCreateRequest, request: Request):
+    require_platform_admin(request)
+    if not 1 <= data.count <= 20:
+        raise HTTPException(400, "count는 1~20 사이여야 합니다.")
+    conn = get_conn()
+    cur = conn.cursor()
+    try:
+        codes = []
+        for _ in range(data.count):
+            code = secrets.token_urlsafe(12)
+            cur.execute(
+                "INSERT INTO invite_codes (code, note) VALUES (%s, %s) RETURNING code",
+                (code, data.note),
+            )
+            codes.append(cur.fetchone()[0])
+        conn.commit()
+        return {"codes": codes}
+    finally:
+        cur.close()
+        conn.close()
+
+
+@app.get("/api/admin/invite-codes")
+async def list_invite_codes(request: Request):
+    require_platform_admin(request)
+    conn = get_conn()
+    cur = conn.cursor()
+    try:
+        cur.execute(
+            """
+            SELECT ic.code, ic.note, ic.created_at, ic.used_at, t.slug
+            FROM invite_codes ic
+            LEFT JOIN tenants t ON t.id = ic.used_by_tenant_id
+            ORDER BY ic.created_at DESC
+            """
+        )
+        rows = cur.fetchall()
+        return {"codes": [
+            {"code": r[0], "note": r[1], "created_at": r[2], "used_at": r[3], "used_by": r[4]}
+            for r in rows
+        ]}
     finally:
         cur.close()
         conn.close()
@@ -1492,6 +1708,381 @@ async def upload_image(
     with (upload_dir / fname).open("wb") as f:
         shutil.copyfileobj(image.file, f)
     return JSONResponse({"url": f"/uploads/{tenant_id}/{fname}"})
+
+
+# ─── Platform Lounge ─────────────────────────────────────────────────────────
+
+LOUNGE_LOGIN_HTML = """<!DOCTYPE html>
+<html lang="ko"><head><meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>목회자 라운지 로그인</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Segoe UI',sans-serif;background:#0f172a;color:#f1f5f9;min-height:100vh;display:flex;align-items:center;justify-content:center}
+.wrap{width:100%;max-width:400px;padding:20px}
+.logo{text-align:center;margin-bottom:32px}
+.logo h1{font-size:1.5rem;color:#cbd5e1;font-weight:600}
+.logo p{font-size:.85rem;color:#64748b;margin-top:4px}
+.card{background:#1e293b;border-radius:16px;padding:32px;box-shadow:0 8px 32px rgba(0,0,0,.4)}
+.field{margin-bottom:16px}
+label{display:block;font-size:.8rem;color:#94a3b8;margin-bottom:6px;font-weight:500}
+input{width:100%;padding:10px 14px;background:#0f172a;border:1.5px solid #334155;border-radius:8px;color:#f1f5f9;font-size:.95rem;outline:none}
+input:focus{border-color:#6366f1}
+.btn{width:100%;padding:12px;background:#6366f1;color:#fff;border:none;border-radius:8px;font-size:.95rem;font-weight:600;cursor:pointer;margin-top:8px}
+.btn:hover{background:#4f46e5}
+.err{color:#f87171;font-size:.85rem;margin-top:12px;text-align:center;display:none}
+.back{text-align:center;margin-top:16px;font-size:.82rem;color:#64748b}
+.back a{color:#818cf8}
+</style></head><body>
+<div class="wrap">
+  <div class="logo">
+    <h1>✝ 목회자 라운지</h1>
+    <p>교회 플랫폼 가입 교회 전용 공간</p>
+  </div>
+  <div class="card">
+    <div class="field"><label>교회 slug</label><input id="slug" placeholder="sejong-church" autocomplete="off"></div>
+    <div class="field"><label>관리자 아이디</label><input id="username" autocomplete="username"></div>
+    <div class="field"><label>비밀번호</label><input id="password" type="password" autocomplete="current-password"></div>
+    <button class="btn" onclick="doLogin()">입장하기</button>
+    <div class="err" id="err"></div>
+  </div>
+  <div class="back"><a href="/">← 플랫폼 홈으로</a></div>
+</div>
+<script>
+async function doLogin() {
+  const err = document.getElementById('err');
+  err.style.display = 'none';
+  const res = await fetch('/api/platform/login', {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({
+      slug: document.getElementById('slug').value.trim(),
+      username: document.getElementById('username').value.trim(),
+      password: document.getElementById('password').value
+    })
+  });
+  const data = await res.json();
+  if (!res.ok) { err.textContent = data.detail || '로그인 실패'; err.style.display='block'; return; }
+  location.href = '/platform/lounge';
+}
+document.addEventListener('keydown', e => { if(e.key==='Enter') doLogin(); });
+</script>
+</body></html>"""
+
+
+LOUNGE_HTML_TEMPLATE = """<!DOCTYPE html>
+<html lang="ko"><head><meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>목회자 라운지</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Segoe UI',sans-serif;background:#0f172a;color:#f1f5f9;min-height:100vh}
+header{background:#1e293b;border-bottom:1px solid #334155;padding:14px 24px;display:flex;align-items:center;justify-content:space-between}
+header .logo{font-size:1rem;font-weight:700;color:#c7d2fe}
+header .info{font-size:.82rem;color:#64748b}
+header .info span{color:#94a3b8;margin-right:12px}
+header a.out{color:#64748b;font-size:.8rem;text-decoration:none}
+.main{max-width:860px;margin:0 auto;padding:32px 20px}
+.search-wrap{display:flex;gap:8px;margin-bottom:28px}
+.search-wrap input{flex:1;padding:11px 16px;background:#1e293b;border:1.5px solid #334155;border-radius:10px;color:#f1f5f9;font-size:.95rem;outline:none}
+.search-wrap input:focus{border-color:#6366f1}
+.search-wrap button{padding:11px 20px;background:#6366f1;color:#fff;border:none;border-radius:10px;cursor:pointer;font-weight:600}
+.tag-row{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:24px}
+.tag{padding:4px 12px;background:#1e293b;border:1px solid #334155;border-radius:20px;font-size:.78rem;color:#94a3b8;cursor:pointer}
+.tag:hover,.tag.active{background:#6366f1;border-color:#6366f1;color:#fff}
+.articles{display:grid;gap:16px}
+.article-card{background:#1e293b;border-radius:12px;padding:24px;border:1px solid #334155;cursor:pointer;transition:border-color .2s}
+.article-card:hover{border-color:#6366f1}
+.article-card h3{font-size:1rem;color:#e2e8f0;margin-bottom:6px;line-height:1.5}
+.article-card .summary{font-size:.85rem;color:#64748b;line-height:1.6;margin-bottom:12px}
+.article-card .meta{display:flex;gap:12px;align-items:center}
+.article-card .author{font-size:.78rem;color:#818cf8}
+.article-card .date{font-size:.78rem;color:#475569}
+.tags-list{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
+.tag-sm{padding:2px 8px;background:#0f172a;border-radius:10px;font-size:.72rem;color:#6366f1;border:1px solid #312e81}
+.empty{text-align:center;padding:60px 0;color:#475569;font-size:.9rem}
+.loading{text-align:center;padding:40px 0;color:#64748b}
+</style></head><body>
+<header>
+  <div class="logo">✝ 목회자 라운지</div>
+  <div class="info">
+    <span id="church_name"></span>
+    <a class="out" href="/api/platform/logout">로그아웃</a>
+  </div>
+</header>
+<div class="main">
+  <div class="search-wrap">
+    <input id="q" placeholder="신학 주제, 키워드 검색..." onkeydown="if(event.key==='Enter')search()">
+    <button onclick="search()">검색</button>
+  </div>
+  <div class="tag-row" id="tagRow"></div>
+  <div class="articles" id="articles"><div class="loading">불러오는 중...</div></div>
+</div>
+<script>
+let activeTag = null;
+
+async function fetchMe() {
+  const res = await fetch('/api/platform/me');
+  if (!res.ok) { location.href='/platform/login'; return; }
+  const d = await res.json();
+  document.getElementById('church_name').textContent = d.church_name + ' · ' + d.username;
+}
+
+async function search(tag) {
+  const q = document.getElementById('q').value.trim();
+  if (tag !== undefined) {
+    activeTag = activeTag === tag ? null : tag;
+    document.querySelectorAll('.tag').forEach(t => t.classList.toggle('active', t.dataset.tag === activeTag));
+    document.getElementById('q').value = '';
+  }
+  const params = new URLSearchParams();
+  if (q) params.set('q', q);
+  if (activeTag) params.set('tag', activeTag);
+  const res = await fetch('/api/platform/articles?' + params);
+  const data = await res.json();
+  renderArticles(data.articles);
+  if (!q && !activeTag) renderTags(data.tags);
+}
+
+function renderArticles(articles) {
+  const el = document.getElementById('articles');
+  if (!articles.length) { el.innerHTML = '<div class="empty">아티클이 없습니다.</div>'; return; }
+  el.innerHTML = articles.map(a => `
+    <div class="article-card" onclick="location.href='/platform/article/${a.id}'">
+      <h3>${a.title}</h3>
+      <div class="summary">${a.summary || ''}</div>
+      <div class="meta">
+        <span class="author">${a.author}</span>
+        <span class="date">${a.created_at?.substring(0,10) || ''}</span>
+      </div>
+      ${a.tags?.length ? '<div class="tags-list">' + a.tags.map(t=>`<span class="tag-sm">${t}</span>`).join('') + '</div>' : ''}
+    </div>
+  `).join('');
+}
+
+function renderTags(tags) {
+  if (!tags?.length) return;
+  const el = document.getElementById('tagRow');
+  el.innerHTML = tags.map(t => `<span class="tag" data-tag="${t}" onclick="search('${t}')">${t}</span>`).join('');
+}
+
+fetchMe();
+search();
+</script>
+</body></html>"""
+
+
+ARTICLE_HTML_TEMPLATE = """<!DOCTYPE html>
+<html lang="ko"><head><meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>{title} — 목회자 라운지</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Segoe UI',sans-serif;background:#0f172a;color:#f1f5f9;min-height:100vh}
+header{background:#1e293b;border-bottom:1px solid #334155;padding:14px 24px;display:flex;align-items:center;gap:16px}
+header a{color:#818cf8;font-size:.85rem;text-decoration:none}
+header .logo{font-size:1rem;font-weight:700;color:#c7d2fe}
+.main{max-width:720px;margin:0 auto;padding:40px 20px}
+h1{font-size:1.6rem;line-height:1.4;margin-bottom:12px}
+.meta{display:flex;gap:12px;margin-bottom:24px;font-size:.82rem;color:#64748b}
+.meta .author{{color:#818cf8}}
+.tags-list{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:28px}
+.tag-sm{padding:3px 10px;background:#1e293b;border-radius:10px;font-size:.78rem;color:#6366f1;border:1px solid #312e81}
+.content{font-size:.95rem;line-height:1.9;color:#cbd5e1;white-space:pre-wrap;background:#1e293b;padding:28px;border-radius:12px;border:1px solid #334155}
+</style></head><body>
+<header>
+  <div class="logo">✝</div>
+  <a href="/platform/lounge">← 라운지로</a>
+</header>
+<div class="main">
+  <h1>{title}</h1>
+  <div class="meta"><span class="author">{author}</span><span>{created_at}</span></div>
+  {tags_html}
+  <div class="content">{content}</div>
+</div>
+</body></html>"""
+
+
+def get_platform_user(request: Request):
+    token = request.cookies.get("psession")
+    if not token:
+        return None
+    return platform_sessions.get(token)
+
+
+def require_platform_user(request: Request):
+    user = get_platform_user(request)
+    if not user:
+        raise HTTPException(status_code=302, headers={"Location": "/platform/login"})
+    return user
+
+
+class PlatformLoginRequest(BaseModel):
+    slug: str
+    username: str
+    password: str
+
+
+@app.get("/platform/login", response_class=HTMLResponse)
+async def platform_login_page():
+    return HTMLResponse(LOUNGE_LOGIN_HTML)
+
+
+@app.post("/api/platform/login")
+async def platform_login(data: PlatformLoginRequest, response: JSONResponse = None):
+    from fastapi.responses import JSONResponse as JR
+    conn = get_conn()
+    cur = conn.cursor()
+    try:
+        cur.execute("SELECT id, slug, church_name FROM tenants WHERE slug=%s AND status != 'suspended'", (data.slug,))
+        tenant = cur.fetchone()
+        if not tenant:
+            raise HTTPException(400, "등록되지 않은 교회 slug입니다.")
+        tenant_id, slug, church_name = tenant
+
+        cur.execute(
+            "SELECT id, password, role, name FROM users WHERE tenant_id=%s AND username=%s",
+            (tenant_id, data.username),
+        )
+        user = cur.fetchone()
+        if not user or not verify_password(data.password, user[1]):
+            raise HTTPException(400, "아이디 또는 비밀번호가 올바르지 않습니다.")
+        if user[2] not in ("admin", "owner"):
+            raise HTTPException(403, "관리자 계정만 라운지에 입장할 수 있습니다.")
+
+        token = secrets.token_hex(32)
+        platform_sessions[token] = {
+            "user_id": user[0],
+            "tenant_id": tenant_id,
+            "slug": slug,
+            "church_name": church_name,
+            "username": data.username,
+            "name": user[3],
+            "role": user[2],
+        }
+        resp = JR({"ok": True})
+        resp.set_cookie("psession", token, httponly=True, samesite="lax", max_age=86400 * 7)
+        return resp
+    finally:
+        cur.close()
+        conn.close()
+
+
+@app.get("/api/platform/logout")
+async def platform_logout(request: Request):
+    token = request.cookies.get("psession")
+    if token:
+        platform_sessions.pop(token, None)
+    resp = RedirectResponse("/platform/login", status_code=302)
+    resp.delete_cookie("psession")
+    return resp
+
+
+@app.get("/api/platform/me")
+async def platform_me(request: Request):
+    user = get_platform_user(request)
+    if not user:
+        raise HTTPException(401, "Unauthorized")
+    return {"church_name": user["church_name"], "username": user["username"], "slug": user["slug"]}
+
+
+@app.get("/platform/lounge", response_class=HTMLResponse)
+async def platform_lounge(request: Request):
+    user = get_platform_user(request)
+    if not user:
+        return RedirectResponse("/platform/login", status_code=302)
+    return HTMLResponse(LOUNGE_HTML_TEMPLATE)
+
+
+@app.get("/api/platform/articles")
+async def platform_articles(request: Request, q: str = "", tag: str = ""):
+    user = get_platform_user(request)
+    if not user:
+        raise HTTPException(401, "Unauthorized")
+
+    if q or tag:
+        must = []
+        if q:
+            must.append({"multi_match": {"query": q, "fields": ["title^3", "content", "summary^2"], "type": "best_fields"}})
+        if tag:
+            must.append({"term": {"tags": tag}})
+        body = {"query": {"bool": {"must": must}}, "size": 30, "sort": [{"created_at": "desc"}]}
+    else:
+        body = {"query": {"match_all": {}}, "size": 30, "sort": [{"created_at": "desc"}],
+                "aggs": {"all_tags": {"terms": {"field": "tags", "size": 30}}}}
+
+    result = es.search(index=ES_INDEX, body=body)
+    hits = result["hits"]["hits"]
+    articles = [{"id": h["_id"], **h["_source"]} for h in hits]
+    tags = [b["key"] for b in result.get("aggregations", {}).get("all_tags", {}).get("buckets", [])]
+    return {"articles": articles, "tags": tags}
+
+
+@app.get("/platform/article/{article_id}", response_class=HTMLResponse)
+async def platform_article_detail(article_id: str, request: Request):
+    user = get_platform_user(request)
+    if not user:
+        return RedirectResponse("/platform/login", status_code=302)
+    try:
+        doc = es.get(index=ES_INDEX, id=article_id)
+        src = doc["_source"]
+        tags_html = ""
+        if src.get("tags"):
+            tags_html = '<div class="tags-list">' + "".join(f'<span class="tag-sm">{t}</span>' for t in src["tags"]) + "</div>"
+        return HTMLResponse(ARTICLE_HTML_TEMPLATE.format(
+            title=src.get("title", ""),
+            author=src.get("author", ""),
+            created_at=str(src.get("created_at", ""))[:10],
+            tags_html=tags_html,
+            content=src.get("content", ""),
+        ))
+    except Exception:
+        raise HTTPException(404, "아티클을 찾을 수 없습니다.")
+
+
+# ─── Platform Admin: Article CRUD ────────────────────────────────────────────
+
+class ArticleCreateRequest(BaseModel):
+    title: str
+    content: str
+    summary: Optional[str] = ""
+    author: Optional[str] = "운영자"
+    tags: Optional[List[str]] = []
+
+
+@app.post("/api/admin/articles")
+async def create_article(data: ArticleCreateRequest, request: Request):
+    require_platform_admin(request)
+    doc = {
+        "title": data.title,
+        "content": data.content,
+        "summary": data.summary,
+        "author": data.author,
+        "tags": data.tags,
+        "created_at": datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%S"),
+    }
+    result = es.index(index=ES_INDEX, document=doc)
+    return {"id": result["_id"], "title": data.title}
+
+
+@app.put("/api/admin/articles/{article_id}")
+async def update_article(article_id: str, data: ArticleCreateRequest, request: Request):
+    require_platform_admin(request)
+    doc = {
+        "title": data.title,
+        "content": data.content,
+        "summary": data.summary,
+        "author": data.author,
+        "tags": data.tags,
+    }
+    es.update(index=ES_INDEX, id=article_id, doc=doc)
+    return {"ok": True}
+
+
+@app.delete("/api/admin/articles/{article_id}")
+async def delete_article(article_id: str, request: Request):
+    require_platform_admin(request)
+    es.delete(index=ES_INDEX, id=article_id)
+    return {"ok": True}
 
 
 if __name__ == "__main__":
