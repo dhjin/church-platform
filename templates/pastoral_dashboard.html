@@ -61,9 +61,9 @@ header{background:#1e293b;border-bottom:1px solid #334155;padding:12px 24px;disp
 <header>
   <div class="logo">✝ {{ tenant.church_name }} — 목양 플래너</div>
   <div class="nav-links">
-    <a href="/pastoral/dashboard" class="active">대시보드</a>
-    <a href="/pastoral/members">성도 관리</a>
-    <a href="/pastoral/donations">기부금</a>
+    <a href="/planner/dashboard" class="active">대시보드</a>
+    <a href="/planner/members">성도 관리</a>
+    <a href="/planner/donations">기부금</a>
     <a href="/admin">어드민</a>
     <a href="/logout">로그아웃</a>
   </div>
@@ -88,7 +88,7 @@ header{background:#1e293b;border-bottom:1px solid #334155;padding:12px 24px;disp
             <div class="name">{{ a.name }}</div>
             <div class="days">{{ a.days }}일 미접촉 · {{ a.cell_group or '셀 미지정' }}</div>
           </div>
-          <a href="/pastoral/members/{{ a.id }}">보기 →</a>
+          <a href="/planner/members/{{ a.id }}">보기 →</a>
         </div>
         {% endfor %}
       </div>
@@ -101,12 +101,12 @@ header{background:#1e293b;border-bottom:1px solid #334155;padding:12px 24px;disp
       <h2>👥 성도 목록</h2>
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
         <input id="memberSearch" placeholder="이름 검색..." onkeyup="filterMembers()" style="flex:1;padding:7px 12px;background:#0f172a;border:1.5px solid #334155;border-radius:8px;color:#f1f5f9;font-size:.85rem;outline:none;margin-right:8px">
-        <a href="/pastoral/members/new" class="btn btn-primary btn-sm">+ 등록</a>
+        <a href="/planner/members/new" class="btn btn-primary btn-sm">+ 등록</a>
       </div>
       {% if members %}
       <div class="member-list" id="memberList">
         {% for m in members %}
-        <div class="member-item" onclick="location.href='/pastoral/members/{{ m.id }}'" data-name="{{ m.name }}">
+        <div class="member-item" onclick="location.href='/planner/members/{{ m.id }}'" data-name="{{ m.name }}">
           <div>
             <div class="mname">{{ m.name }}</div>
             <div class="meta">{{ m.cell_group or '셀 미지정' }}{% if m.phone %} · {{ m.phone }}{% endif %}</div>
@@ -116,7 +116,7 @@ header{background:#1e293b;border-bottom:1px solid #334155;padding:12px 24px;disp
         {% endfor %}
       </div>
       {% else %}
-      <div class="empty">등록된 성도가 없습니다.<br><a href="/pastoral/members/new" style="color:#818cf8">+ 첫 번째 성도 등록</a></div>
+      <div class="empty">등록된 성도가 없습니다.<br><a href="/planner/members/new" style="color:#818cf8">+ 첫 번째 성도 등록</a></div>
       {% endif %}
     </div>
   </div>

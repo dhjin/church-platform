@@ -156,7 +156,11 @@ input.error{border-color:#e53e3e}
 
 <div class="footer">
   <p>이미 등록하셨나요? <a href="#" onclick="goLogin()" style="color:#1e3a5f;font-weight:600">내 교회 사이트로 이동 →</a></p>
-  <p style="margin-top:8px">&copy; 2026 Church Platform · 월 19,000원 구독 (30일 무료 후)</p>
+  <p style="margin-top:16px;padding:14px 20px;background:#fff3cd;border-radius:8px;color:#664d03;font-size:.84rem;line-height:1.7;display:inline-block;max-width:480px">
+    💬 초대 코드 및 가입 문의는 아래 카카오톡 채널로 연락 주시면 가장 빠르게 답변해 드립니다.<br>
+    <span style="font-weight:600">— 더처치플러스 플랫폼 —</span>
+  </p>
+  <p style="margin-top:16px">&copy; 2026 Church Platform · 월 19,000원 구독 (30일 무료 후)</p>
 </div>
 
 <script>
@@ -2024,7 +2028,7 @@ def _get_or_create_e2ee_salt(tenant_id: int) -> tuple[str, bool]:
     return salt, True
 
 
-@app.get("/pastoral/dashboard", response_class=HTMLResponse)
+@app.get("/planner/dashboard", response_class=HTMLResponse)
 async def pastoral_dashboard(request: Request, user: dict = Depends(require_owner)):
     tenant_id = user["tenant_id"]
     salt, is_first = _get_or_create_e2ee_salt(tenant_id)
@@ -2063,17 +2067,17 @@ async def pastoral_dashboard(request: Request, user: dict = Depends(require_owne
     })
 
 
-@app.get("/pastoral/members", response_class=HTMLResponse)
+@app.get("/planner/members", response_class=HTMLResponse)
 async def pastoral_members_redirect(user: dict = Depends(require_owner)):
-    return RedirectResponse("/pastoral/dashboard", status_code=302)
+    return RedirectResponse("/planner/dashboard", status_code=302)
 
 
-@app.get("/pastoral/members/new", response_class=HTMLResponse)
+@app.get("/planner/members/new", response_class=HTMLResponse)
 async def pastoral_member_new(request: Request, user: dict = Depends(require_owner)):
     return templates.TemplateResponse(request, "pastoral_member_new.html")
 
 
-@app.post("/pastoral/members/create")
+@app.post("/planner/members/create")
 async def pastoral_member_create(
     request: Request,
     name: str = Form(...), cell_group: str = Form(""), phone: str = Form(""),
@@ -2091,10 +2095,10 @@ async def pastoral_member_create(
     )
     mid = cur.fetchone()[0]
     conn.commit(); cur.close(); conn.close()
-    return RedirectResponse(f"/pastoral/members/{mid}", status_code=303)
+    return RedirectResponse(f"/planner/members/{mid}", status_code=303)
 
 
-@app.get("/pastoral/members/{member_id}", response_class=HTMLResponse)
+@app.get("/planner/members/{member_id}", response_class=HTMLResponse)
 async def pastoral_member_detail(member_id: int, request: Request, user: dict = Depends(require_owner)):
     tenant_id = user["tenant_id"]
     salt, _ = _get_or_create_e2ee_salt(tenant_id)
@@ -2123,7 +2127,7 @@ async def pastoral_member_detail(member_id: int, request: Request, user: dict = 
         "logs_json": _json.dumps(logs), "today": str(date.today())})
 
 
-@app.post("/pastoral/members/update/{member_id}")
+@app.post("/planner/members/update/{member_id}")
 async def pastoral_member_update(
     member_id: int,
     name: str = Form(...), cell_group: str = Form(""), phone: str = Form(""),
@@ -2140,10 +2144,10 @@ async def pastoral_member_update(
         (name, cell_group, phone, email, address, d(birth_date), d(join_date), d(baptism_date), status, notes, member_id, tenant_id),
     )
     conn.commit(); cur.close(); conn.close()
-    return RedirectResponse(f"/pastoral/members/{member_id}", status_code=303)
+    return RedirectResponse(f"/planner/members/{member_id}", status_code=303)
 
 
-@app.post("/pastoral/members/delete/{member_id}")
+@app.post("/planner/members/delete/{member_id}")
 async def pastoral_member_delete(member_id: int, user: dict = Depends(require_owner)):
     tenant_id = user["tenant_id"]
     conn = get_conn()
@@ -2151,7 +2155,7 @@ async def pastoral_member_delete(member_id: int, user: dict = Depends(require_ow
     cur.execute("DELETE FROM counseling_logs WHERE member_id=%s AND tenant_id=%s", (member_id, tenant_id))
     cur.execute("DELETE FROM congregation_members WHERE id=%s AND tenant_id=%s", (member_id, tenant_id))
     conn.commit(); cur.close(); conn.close()
-    return RedirectResponse("/pastoral/dashboard", status_code=303)
+    return RedirectResponse("/planner/dashboard", status_code=303)
 
 
 # ─── Pastoral: Counseling logs (E2EE) ────────────────────────────────────────
@@ -2163,7 +2167,7 @@ class CounselCreateRequest(BaseModel):
     counsel_date: Optional[str] = None
 
 
-@app.post("/api/pastoral/counsel")
+@app.post("/api/planner/counsel")
 async def create_counsel(data: CounselCreateRequest, user: dict = Depends(require_owner)):
     tenant_id = user["tenant_id"]
     from datetime import date
@@ -2183,7 +2187,7 @@ async def create_counsel(data: CounselCreateRequest, user: dict = Depends(requir
     return {"id": row[0], "encrypted_content": data.encrypted_content, "iv": data.iv, "created_at": str(row[1])[:16]}
 
 
-@app.delete("/api/pastoral/counsel/{log_id}")
+@app.delete("/api/planner/counsel/{log_id}")
 async def delete_counsel(log_id: int, user: dict = Depends(require_owner)):
     tenant_id = user["tenant_id"]
     conn = get_conn()
@@ -2193,7 +2197,7 @@ async def delete_counsel(log_id: int, user: dict = Depends(require_owner)):
     return {"ok": True}
 
 
-@app.post("/api/pastoral/members/{member_id}/contact")
+@app.post("/api/planner/members/{member_id}/contact")
 async def mark_contact(member_id: int, user: dict = Depends(require_owner)):
     tenant_id = user["tenant_id"]
     from datetime import date
@@ -2209,7 +2213,7 @@ async def mark_contact(member_id: int, user: dict = Depends(require_owner)):
 
 # ─── Pastoral: Donations ─────────────────────────────────────────────────────
 
-@app.get("/pastoral/donations", response_class=HTMLResponse)
+@app.get("/planner/donations", response_class=HTMLResponse)
 async def pastoral_donations(request: Request, year: int = 0, user: dict = Depends(require_owner)):
     tenant_id = user["tenant_id"]
     from datetime import date
@@ -2233,7 +2237,7 @@ async def pastoral_donations(request: Request, year: int = 0, user: dict = Depen
         "current_year": current_year, "years": years_rows, "members": members})
 
 
-@app.post("/pastoral/donations/create")
+@app.post("/planner/donations/create")
 async def pastoral_donation_create(
     member_name: str = Form(...), amount: int = Form(...),
     year: int = Form(...), receipt_number: str = Form(""),
@@ -2251,20 +2255,20 @@ async def pastoral_donation_create(
         (tenant_id, member_id, member_name, amount, year, rnum),
     )
     conn.commit(); cur.close(); conn.close()
-    return RedirectResponse(f"/pastoral/donations?year={year}", status_code=303)
+    return RedirectResponse(f"/planner/donations?year={year}", status_code=303)
 
 
-@app.post("/pastoral/donations/delete/{receipt_id}")
+@app.post("/planner/donations/delete/{receipt_id}")
 async def pastoral_donation_delete(receipt_id: int, user: dict = Depends(require_owner)):
     tenant_id = user["tenant_id"]
     conn = get_conn()
     cur = conn.cursor()
     cur.execute("DELETE FROM donation_receipts WHERE id=%s AND tenant_id=%s", (receipt_id, tenant_id))
     conn.commit(); cur.close(); conn.close()
-    return RedirectResponse("/pastoral/donations", status_code=303)
+    return RedirectResponse("/planner/donations", status_code=303)
 
 
-@app.get("/pastoral/donations/export/{year}")
+@app.get("/planner/donations/export/{year}")
 async def pastoral_donation_export(year: int, user: dict = Depends(require_owner)):
     tenant_id = user["tenant_id"]
     conn = get_conn()

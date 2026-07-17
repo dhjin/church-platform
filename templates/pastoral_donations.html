@@ -44,8 +44,8 @@ tr:hover td{background:#1a2744}
 <body>
 <header>
   <div class="logo">✝</div>
-  <a href="/pastoral/dashboard">← 대시보드</a>
-  <a href="/pastoral/members">성도 관리</a>
+  <a href="/planner/dashboard">← 대시보드</a>
+  <a href="/planner/members">성도 관리</a>
 </header>
 
 <div class="main">
@@ -56,7 +56,7 @@ tr:hover td{background:#1a2744}
       {% endfor %}
     </select>
     <span style="color:#64748b;font-size:.85rem">{{ current_year }}년 기부금 내역</span>
-    <a href="/pastoral/donations/export/{{ current_year }}" class="btn btn-success btn-sm">CSV 내보내기</a>
+    <a href="/planner/donations/export/{{ current_year }}" class="btn btn-success btn-sm">CSV 내보내기</a>
   </div>
 
   <div class="summary-row">
@@ -66,7 +66,7 @@ tr:hover td{background:#1a2744}
 
   <div class="add-form">
     <h3>기부금 입력</h3>
-    <form method="POST" action="/pastoral/donations/create">
+    <form method="POST" action="/planner/donations/create">
       <div class="form-grid">
         <div>
           <label>성도 이름</label>
@@ -113,7 +113,7 @@ tr:hover td{background:#1a2744}
       <td style="color:#64748b;font-size:.82rem">{{ r.receipt_number or '—' }}</td>
       <td style="color:#64748b;font-size:.82rem">{{ r.issued_at|string|truncate(10,True,'') }}</td>
       <td>
-        <form method="POST" action="/pastoral/donations/delete/{{ r.id }}" style="display:inline" onsubmit="return confirm('삭제할까요?')">
+        <form method="POST" action="/planner/donations/delete/{{ r.id }}" style="display:inline" onsubmit="return confirm('삭제할까요?')">
           <button type="submit" class="btn btn-danger btn-sm">삭제</button>
         </form>
       </td>
@@ -126,7 +126,7 @@ tr:hover td{background:#1a2744}
   {% endif %}
 </div>
 <script>
-function changeYear(y) { location.href = '/pastoral/donations?year=' + y; }
+function changeYear(y) { location.href = '/planner/donations?year=' + y; }
 </script>
 </body>
 </html>

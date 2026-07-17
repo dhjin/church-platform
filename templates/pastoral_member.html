@@ -57,8 +57,8 @@ header a{color:#94a3b8;font-size:.85rem;text-decoration:none}
 <body>
 <header>
   <div class="logo">✝</div>
-  <a href="/pastoral/dashboard">← 대시보드</a>
-  <a href="/pastoral/members">성도 목록</a>
+  <a href="/planner/dashboard">← 대시보드</a>
+  <a href="/planner/members">성도 목록</a>
 </header>
 
 <div class="main">
@@ -72,7 +72,7 @@ header a{color:#94a3b8;font-size:.85rem;text-decoration:none}
       </div>
       <div style="display:flex;gap:8px">
         <button class="btn btn-ghost btn-sm" onclick="toggleEdit()">정보 수정</button>
-        <form method="POST" action="/pastoral/members/delete/{{ member.id }}" onsubmit="return confirm('{{ member.name }} 성도를 삭제할까요?')" style="display:inline">
+        <form method="POST" action="/planner/members/delete/{{ member.id }}" onsubmit="return confirm('{{ member.name }} 성도를 삭제할까요?')" style="display:inline">
           <button type="submit" class="btn btn-danger btn-sm">삭제</button>
         </form>
       </div>
@@ -100,7 +100,7 @@ header a{color:#94a3b8;font-size:.85rem;text-decoration:none}
 
     <!-- 수정 폼 -->
     <div class="edit-form" id="editForm">
-      <form method="POST" action="/pastoral/members/update/{{ member.id }}">
+      <form method="POST" action="/planner/members/update/{{ member.id }}">
         <div class="grid2">
           <div><label>이름</label><input name="name" value="{{ member.name }}" required></div>
           <div><label>셀/목장</label><input name="cell_group" value="{{ member.cell_group or '' }}"></div>
@@ -245,7 +245,7 @@ async function saveCounsel() {
   if (!text) return;
   if (!cryptoKey) { alert('먼저 잠금을 해제해주세요.'); return; }
   const {iv, ciphertext} = await encrypt(cryptoKey, text);
-  const res = await fetch('/api/pastoral/counsel', {
+  const res = await fetch('/api/planner/counsel', {
     method:'POST', headers:{'Content-Type':'application/json'},
     body: JSON.stringify({member_id: MEMBER_ID, iv, encrypted_content: ciphertext, counsel_date: date})
   });
@@ -259,13 +259,13 @@ async function saveCounsel() {
 
 async function deleteLog(id, btn) {
   if (!confirm('이 상담 일지를 삭제할까요?')) return;
-  const res = await fetch(`/api/pastoral/counsel/${id}`, {method:'DELETE'});
+  const res = await fetch(`/api/planner/counsel/${id}`, {method:'DELETE'});
   if (res.ok) { btn.closest('.log-item').remove(); }
 }
 
 async function markContact() {
   const today = new Date().toISOString().split('T')[0];
-  const res = await fetch(`/api/pastoral/members/${MEMBER_ID}/contact`, {method:'POST'});
+  const res = await fetch(`/api/planner/members/${MEMBER_ID}/contact`, {method:'POST'});
   if (res.ok) {
     document.getElementById('lastContact').textContent = today;
   }
