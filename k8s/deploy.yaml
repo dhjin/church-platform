@@ -146,6 +146,14 @@ spec:
               key: PLATFORM_ADMIN_KEY
         - name: ES_URL
           value: "http://elasticsearch.default.svc.cluster.local:9200"
+        - name: ANTHROPIC_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: church-platform-secret
+              key: ANTHROPIC_API_KEY
+              optional: true
+        - name: CONTACT_EMAIL
+          value: "contact@thechurch-plus.org"
         volumeMounts:
         - name: uploads
           mountPath: /app/uploads
