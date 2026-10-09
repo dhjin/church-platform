@@ -5,14 +5,15 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{{ post.title }} - {{ t.pastoral_title }} - {{ t.church_name }}</title>
     <link rel="icon" href="/static/favicon.ico" type="image/x-icon">
-    <meta name="description" content="{{ post.title }} - 더하는 교회 목회 칼럼">
+    <meta name="description" content="{{ post.title }} - {{ t.church_name }} 목회 칼럼">
     <meta property="og:type" content="article">
-    <meta property="og:site_name" content="더하는 교회">
+    <meta property="og:site_name" content="{{ t.church_name }}">
     <meta property="og:title" content="{{ post.title }} - {{ t.church_name }}">
-    <meta property="og:description" content="{{ post.title }} - 더하는 교회 목회 칼럼">
-    <meta property="og:image" content="https://thechurch-plus.org/static/images/og-image.jpg">
-    <meta property="og:url" content="https://thechurch-plus.org/pastoral/{{ post.id }}">
+    <meta property="og:description" content="{{ post.title }} - {{ t.church_name }} 목회 칼럼">
+    <meta property="og:image" content="{{ site.og_image if site else "" }}">
+    <meta property="og:url" content="{{ site.page_url if site else "" }}">
     <link rel="stylesheet" href="/static/css/style.css?v=26">
+    {% include "_site_head.html" %}
     <style>
         .post-detail-container {
             max-width: 800px;
@@ -206,7 +207,7 @@
         <nav class="navbar">
             <div class="container">
                 <div class="logo">
-                    <h1><a href="{{ lp }}/#home" style="color: inherit; text-decoration: none; display: flex; align-items: center; gap: 8px;"><img src="/static/images/logo.png?v=2" alt="logo" style="height: 36px; width: 36px; object-fit: contain;"> {{ t.church_name }}</a></h1>
+                    <h1><a href="{{ lp }}/#home" style="color: inherit; text-decoration: none; display: flex; align-items: center; gap: 8px;">{% if site and site.logo_url %}<img src="{{ site.logo_url }}" alt="logo" style="height: 36px; width: 36px; object-fit: contain;">{% endif %} {{ t.church_name }}</a></h1>
                 </div>
                 <button class="mobile-menu-toggle" aria-label="menu">
                     <span></span>

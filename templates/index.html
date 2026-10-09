@@ -6,41 +6,33 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{{ t.church_name_full }}</title>
     <link rel="icon" href="/static/favicon.ico" type="image/x-icon">
-    <meta name="description" content="더하는 교회에 오신 것을 환영합니다. 말씀과 사랑으로 함께 세워가는 기독교 한국침례회 교회입니다.">
+    <meta name="description" content="{{ t.church_name }}에 오신 것을 환영합니다. 말씀과 사랑으로 함께 세워가는 기독교 한국침례회 교회입니다.">
     <meta property="og:type" content="website">
-    <meta property="og:site_name" content="더하는 교회">
+    <meta property="og:site_name" content="{{ t.church_name }}">
     <meta property="og:title" content="{{ t.church_name_full }}">
-    <meta property="og:description" content="더하는 교회에 오신 것을 환영합니다. 말씀과 사랑으로 함께 세워가는 기독교 한국침례회 교회입니다.">
-    <meta property="og:image" content="https://thechurch-plus.org/static/images/og-image.jpg">
-    <meta property="og:url" content="https://thechurch-plus.org/">
+    <meta property="og:description" content="{{ t.church_name }}에 오신 것을 환영합니다. 말씀과 사랑으로 함께 세워가는 기독교 한국침례회 교회입니다.">
+    <meta property="og:image" content="{{ site.og_image if site else "" }}">
+    <meta property="og:url" content="{{ site.page_url if site else "" }}">
     <link rel="stylesheet" href="/static/css/style.css?v=27">
+    {% include "_site_head.html" %}
     <script type="application/ld+json">
-    {
-      "@context": "https://schema.org",
-      "@type": "Church",
-      "name": "더하는 교회",
-      "alternateName": "Deohaneun Church",
-      "url": "https://thechurch-plus.org",
-      "logo": "https://thechurch-plus.org/static/images/logo.png",
-      "image": "https://thechurch-plus.org/static/images/og-image.jpg",
-      "description": "더하는 교회에 오신 것을 환영합니다. 말씀과 사랑으로 함께 세워가는 기독교 한국침례회 교회입니다.",
-      "denomination": "기독교 한국침례회",
-      "sameAs": [
-        "https://thechurch-plus.org"
-      ]
-    }
+    {{ {"@context": "https://schema.org", "@type": "Church", "name": t.church_name,
+        "url": site.base_url if site else "", "logo": site.og_image if site else "",
+        "description": t.church_name ~ "에 오신 것을 환영합니다.", "denomination": t.denomination,
+        "address": t.footer_address, "telephone": t.footer_tel} | tojson }}
     </script>
     <script type="text/javascript"
         src="//dapi.kakao.com/v2/maps/sdk.js?appkey=04a9be7cc4a029e900041f8a88463d27&autoload=false&libraries=services"></script>
 </head>
 
 <body>
+    {% include "_site_preview_bar.html" %}
     <!-- Header -->
     <header class="header">
         <nav class="navbar">
             <div class="container">
                 <div class="logo">
-                    <h1><a href="{{ lp }}/#home" style="color: inherit; text-decoration: none; display: flex; align-items: center; gap: 8px;"><img src="/static/images/logo.png?v=2" alt="logo" style="height: 36px; width: 36px; object-fit: contain;"> {{ t.church_name }}</a></h1>
+                    <h1><a href="{{ lp }}/#home" style="color: inherit; text-decoration: none; display: flex; align-items: center; gap: 8px;">{% if site and site.logo_url %}<img src="{{ site.logo_url }}" alt="logo" style="height: 36px; width: 36px; object-fit: contain;">{% endif %} {{ t.church_name }}</a></h1>
                 </div>
                 <button class="mobile-menu-toggle" aria-label="menu">
                     <span></span>
@@ -73,7 +65,7 @@
                     <li><a href="#schedule-news">{{ t.nav_news }}</a></li>
                     <li><a href="#contact">{{ t.nav_location }}</a></li>
                     {% if user %}
-                    {% if user.role == 'admin' %}
+                    {% if user.role in ['owner', 'admin', 'manager'] %}
                     <li><a href="/admin" class="admin-link">{{ t.nav_admin }}</a></li>
                     {% endif %}
                     <li><a href="/logout">{{ t.nav_logout }}</a></li>
@@ -99,6 +91,8 @@
         </div>
     </section>
 
+    {% for section in (site.home_sections if site else ["intro", "videos", "schedule_news", "contact"]) %}
+    {% if section == "intro" %}
     <!-- Vision + Welcome Combined Section -->
     <section id="home-top" class="home-top-section">
         <div class="container">
@@ -132,9 +126,11 @@
                     </div>
                     <p class="welcome-text">{{ church_intro }}</p>
                     <div class="church-info-banner">
+                        {% if t.denomination %}
                         <div class="info-item">
                             <strong>{{ t.info_affiliation }}</strong> {{ t.denomination }}
                         </div>
+                        {% endif %}
                         <div class="info-item">
                             <strong>{{ t.info_pastor }}</strong> {{ t.senior_pastor_short }}
                         </div>
@@ -147,6 +143,7 @@
         </div>
     </section>
 
+    {% elif section == "videos" %}
     <!-- Videos Section (3 tabs: 최근설교, 오늘의 QT, 숏츠) -->
     <section id="videos" class="video-section">
         <div class="container">
@@ -252,6 +249,7 @@
         </div>
     </section>
 
+    {% elif section == "schedule_news" %}
     <!-- Worship Schedule and News Section -->
     <section id="schedule-news" class="schedule-news-section">
         <div class="container">
@@ -264,26 +262,12 @@
                     </div>
                     <div class="consolidated-schedule">
                         <div class="schedule-list">
+                            {% for row in (site.worship_schedule if site else []) %}
                             <div class="schedule-row">
-                                <span class="schedule-name">{{ t.sunday_worship }}</span>
-                                <span class="schedule-time">{{ t.sunday_time }}</span>
+                                <span class="schedule-name">{{ row.name }}</span>
+                                <span class="schedule-time">{{ row.time }}</span>
                             </div>
-                            <div class="schedule-row">
-                                <span class="schedule-name">{{ t.sunday_study }}</span>
-                                <span class="schedule-time">{{ t.sunday_study_time }}</span>
-                            </div>
-                            <div class="schedule-row">
-                                <span class="schedule-name">{{ t.wed_worship }}</span>
-                                <span class="schedule-time">{{ t.wed_time }}</span>
-                            </div>
-                            <div class="schedule-row">
-                                <span class="schedule-name">{{ t.fri_prayer }}</span>
-                                <span class="schedule-time">{{ t.fri_time }}</span>
-                            </div>
-                            <div class="schedule-row">
-                                <span class="schedule-name">{{ t.morning_worship }}</span>
-                                <span class="schedule-time">{{ t.morning_time }}</span>
-                            </div>
+                            {% endfor %}
                         </div>
                     </div>
                 </div>
@@ -322,7 +306,9 @@
         </div>
     </section>
 
+    {% elif section == "contact" %}
     <!-- Contact Section -->
+    {% if t.footer_address %}
     <section id="contact" class="contact">
         <div class="container">
             <div class="section-header">
@@ -336,11 +322,11 @@
                     <div id="kakaoMap" style="width:100%;height:420px;border-radius:12px;overflow:hidden;"></div>
                 </div>
                 <div class="map-buttons">
-                    <a href="https://map.naver.com/p/search/대전시%20유성구%20학하동%20755-6" target="_blank"
+                    <a href="https://map.naver.com/p/search/{{ t.footer_address | urlencode }}" target="_blank"
                         class="btn btn-naver">
                         {{ t.naver_map }}
                     </a>
-                    <a href="https://map.kakao.com/link/search/대전시%20유성구%20학하동%20755-6" target="_blank"
+                    <a href="https://map.kakao.com/link/search/{{ t.footer_address | urlencode }}" target="_blank"
                         class="btn btn-kakao">
                         {{ t.kakao_map }}
                     </a>
@@ -348,6 +334,10 @@
             </div>
         </div>
     </section>
+    {% endif %}
+
+    {% endif %}
+    {% endfor %}
 
     <!-- Footer -->
     <footer class="footer">
@@ -389,14 +379,14 @@
             if (typeof kakao !== 'undefined' && kakao.maps) {
                 kakao.maps.load(function () {
                     var container = document.getElementById('kakaoMap');
-                    if (!container) return;
+                    if (!container || !{{ t.footer_address | tojson }}) return;
                     var options = {
                         center: new kakao.maps.LatLng(36.3204, 127.3397),
                         level: 4
                     };
                     var map = new kakao.maps.Map(container, options);
                     var geocoder = new kakao.maps.services.Geocoder();
-                    geocoder.addressSearch('대전 유성구 학하동 755-6', function (result, status) {
+                    geocoder.addressSearch({{ t.footer_address | tojson }}, function (result, status) {
                         if (status === kakao.maps.services.Status.OK) {
                             var coords = new kakao.maps.LatLng(result[0].y, result[0].x);
                             var marker = new kakao.maps.Marker({ map: map, position: coords });
@@ -406,13 +396,7 @@
                             infowindow.open(map, marker);
                             map.setCenter(coords);
                         } else {
-                            var fallback = new kakao.maps.LatLng(36.3620, 127.3560);
-                            var marker = new kakao.maps.Marker({ map: map, position: fallback });
-                            var infowindow = new kakao.maps.InfoWindow({
-                                content: '<div style="padding:8px 12px;font-size:13px;font-weight:600;color:#1a3a5c;">📍 {{ t.church_name }}<br><span style="font-weight:400;font-size:12px;color:#666;">{{ t.footer_address }}</span></div>'
-                            });
-                            infowindow.open(map, marker);
-                            map.setCenter(fallback);
+                            container.style.display = 'none';
                         }
                     });
                 });

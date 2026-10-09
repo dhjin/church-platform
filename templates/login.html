@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{{ t.login_title }} - {{ t.church_name }}</title>
     <link rel="stylesheet" href="/static/css/style.css?v=26">
+    {% include "_site_head.html" %}
     <style>
         .login-container {
             min-height: 100vh;
@@ -126,7 +127,7 @@
     <div class="login-container">
         <div class="login-box">
             <div class="login-header">
-                <h1 style="display: flex; align-items: center; justify-content: center; gap: 8px;"><img src="/static/images/logo.png?v=2" alt="logo" style="height: 40px; width: 40px; object-fit: contain;"> {{ t.church_name }}</h1>
+                <h1 style="display: flex; align-items: center; justify-content: center; gap: 8px;">{% if site and site.logo_url %}<img src="{{ site.logo_url }}" alt="logo" style="height: 40px; width: 40px; object-fit: contain;">{% endif %} {{ t.church_name }}</h1>
                 <p>{{ t.login_title }}</p>
             </div>
 

@@ -25,6 +25,7 @@ from middleware import TenantMiddleware
 from billing import config as billing_config
 from billing import service as billing
 from billing.providers import BillingProviderError, configured_providers
+import site_config
 
 load_dotenv()
 
@@ -389,8 +390,81 @@ TRANSLATIONS = {
 }
 
 
-def get_t(lang: str = "ko") -> dict:
-    return TRANSLATIONS.get(lang, TRANSLATIONS["ko"])
+def current_site_config(request: Request) -> Optional[dict]:
+    """요청한 교회의 사이트 설정. 관리자는 ?preview=<버전> 또는 ?preview_theme=<카탈로그 테마> 로 미리볼 수 있다."""
+    tenant = getattr(request.state, "tenant", None)
+    if tenant is None:
+        return None
+    if hasattr(request.state, "site_config"):
+        return request.state.site_config
+    cfg = site_config.load_active_config(tenant["id"])
+    preview = None
+    version, theme = request.query_params.get("preview"), request.query_params.get("preview_theme")
+    if (version or theme) and _is_tenant_admin(request):
+        if version and version.isdigit():
+            draft = site_config.load_version(tenant["id"], int(version))
+            if draft is not None:
+                cfg, preview = draft, {"kind": "version", "id": int(version)}
+        elif theme in site_config.THEME_PRESETS:
+            cfg = site_config.apply_catalog_theme(cfg, theme)
+            preview = {"kind": "theme", "id": theme, "label": site_config.THEME_PRESETS[theme]["label"]}
+    request.state.site_config = cfg
+    request.state.site_preview = preview
+    return cfg
+
+
+def _is_tenant_admin(request: Request) -> bool:
+    user = get_current_user(request)
+    return bool(user and user["role"] in ADMIN_ROLES)
+
+
+def get_t(lang: str = "ko", request: Optional[Request] = None) -> dict:
+    t = dict(TRANSLATIONS.get(lang, TRANSLATIONS["ko"]))
+    tenant = getattr(request.state, "tenant", None) if request is not None else None
+    if tenant is None:
+        return t
+    cfg = current_site_config(request)
+    texts = cfg["texts"]
+    pastor = tenant.get("pastor_name") or ""
+    pastor_title = ("Senior Pastor " if lang == "en" else "담임목사 ") + pastor if pastor else ""
+    t.update({
+        "church_name": tenant["church_name"], "church_name_full": tenant["church_name"],
+        "denomination": texts["denomination"],
+        "senior_pastor": pastor_title, "senior_pastor_short": pastor, "pastor_label": pastor_title,
+        "footer_address": tenant.get("address", ""), "info_location_val": tenant.get("address", ""),
+        "footer_tel": tenant.get("phone", ""), "footer_phone": tenant.get("phone", ""),
+    })
+    if lang == "ko":
+        t.update({
+            "hero_title": texts["hero_title"], "hero_subtitle": texts["hero_subtitle"],
+            "hero_info": texts["hero_info"], "welcome_title": texts["welcome_title"],
+            "mission_5_title": texts["mission_title"], "footer_blessing": texts["footer_blessing"],
+        })
+    return t
+
+
+def site_context(request: Request) -> dict:
+    """모든 템플릿에 들어가는 교회별 디자인 정보(테마 CSS, 로고, 홈 섹션, 공유용 URL)."""
+    cfg = current_site_config(request)
+    if cfg is None:
+        return {"site": None}
+    base = str(request.base_url).rstrip("/")
+    logo = cfg["logo_path"]
+    return {"site": {
+        "theme_css": site_config.theme_css(cfg),
+        "font_href": site_config.font_href(cfg),
+        "logo_url": logo,
+        "og_image": base + (logo or "/static/images/og-image.jpg"),
+        "base_url": base,
+        "page_url": base + request.url.path,
+        "home_sections": cfg["home_sections"],
+        "worship_schedule": cfg["worship_schedule"],
+        "about_images": cfg["about_images"],
+        "preview": getattr(request.state, "site_preview", None),
+    }}
+
+
+templates.context_processors.append(site_context)
 
 
 def get_lang_prefix(lang: str) -> str:
@@ -638,7 +712,7 @@ async def list_invite_codes(request: Request):
 async def _home(request: Request, lang: str = "ko"):
     tenant = request.state.tenant
     tenant_id = tenant["id"]
-    t = get_t(lang)
+    t = get_t(lang, request)
     lp = get_lang_prefix(lang)
     conn = get_conn()
     cur = conn.cursor()
@@ -735,7 +809,7 @@ async def home_en(request: Request):
 
 async def _about_page(request: Request, lang: str = "ko"):
     tenant_id = request.state.tenant["id"]
-    t = get_t(lang)
+    t = get_t(lang, request)
     lp = get_lang_prefix(lang)
     conn = get_conn()
     cur = conn.cursor()
@@ -772,7 +846,7 @@ async def about_page_en(request: Request):
 
 async def _direction_page(request: Request, lang: str = "ko"):
     tenant_id = request.state.tenant["id"]
-    t = get_t(lang)
+    t = get_t(lang, request)
     lp = get_lang_prefix(lang)
     conn = get_conn()
     cur = conn.cursor()
@@ -800,7 +874,7 @@ async def direction_page_en(request: Request):
 
 async def _people_page(request: Request, lang: str = "ko"):
     tenant_id = request.state.tenant["id"]
-    t = get_t(lang)
+    t = get_t(lang, request)
     lp = get_lang_prefix(lang)
     conn = get_conn()
     cur = conn.cursor()
@@ -838,7 +912,7 @@ async def people_page_en(request: Request):
 
 async def _pastoral_list(request: Request, lang: str = "ko", page: int = 1, q: str = ""):
     tenant_id = request.state.tenant["id"]
-    t = get_t(lang)
+    t = get_t(lang, request)
     lp = get_lang_prefix(lang)
     per_page = 20
     offset = (page - 1) * per_page
@@ -891,7 +965,7 @@ async def pastoral_list_en(request: Request, page: int = 1, q: str = ""):
 
 async def _pastoral_detail(request: Request, post_id: int, lang: str = "ko"):
     tenant_id = request.state.tenant["id"]
-    t = get_t(lang)
+    t = get_t(lang, request)
     lp = get_lang_prefix(lang)
     conn = get_conn()
     cur = conn.cursor()
@@ -958,7 +1032,7 @@ async def pastoral_detail_en(request: Request, post_id: int):
 
 async def _view_news(request: Request, news_id: int, lang: str = "ko"):
     tenant_id = request.state.tenant["id"]
-    t = get_t(lang)
+    t = get_t(lang, request)
     lp = get_lang_prefix(lang)
     conn = get_conn()
     cur = conn.cursor()
@@ -1025,33 +1099,33 @@ async def view_news_en(request: Request, news_id: int):
 async def login_page(request: Request):
     if not getattr(request.state, "tenant", None):
         raise HTTPException(404)
-    return templates.TemplateResponse(request, "login.html", {"t": get_t("ko"), "lp": ""})
+    return templates.TemplateResponse(request, "login.html", {"t": get_t("ko", request), "lp": ""})
 
 
 @app.get("/en/login", response_class=HTMLResponse)
 async def login_page_en(request: Request):
     if not getattr(request.state, "tenant", None):
         raise HTTPException(404)
-    return templates.TemplateResponse(request, "login.html", {"t": get_t("en"), "lp": "/en"})
+    return templates.TemplateResponse(request, "login.html", {"t": get_t("en", request), "lp": "/en"})
 
 
 @app.get("/register", response_class=HTMLResponse)
 async def register_page(request: Request):
     if not getattr(request.state, "tenant", None):
         raise HTTPException(404)
-    return templates.TemplateResponse(request, "register.html", {"t": get_t("ko"), "lp": ""})
+    return templates.TemplateResponse(request, "register.html", {"t": get_t("ko", request), "lp": ""})
 
 
 @app.get("/en/register", response_class=HTMLResponse)
 async def register_page_en(request: Request):
     if not getattr(request.state, "tenant", None):
         raise HTTPException(404)
-    return templates.TemplateResponse(request, "register.html", {"t": get_t("en"), "lp": "/en"})
+    return templates.TemplateResponse(request, "register.html", {"t": get_t("en", request), "lp": "/en"})
 
 
 async def _register_post(request: Request, lang: str, name: str, email: str):
     tenant_id = request.state.tenant["id"]
-    t = get_t(lang)
+    t = get_t(lang, request)
     lp = get_lang_prefix(lang)
     errors = []
     if len(name.strip()) < 2:
@@ -1094,7 +1168,7 @@ async def register_en(request: Request, name: str = Form(...), email: str = Form
 
 async def _login_post(request: Request, lang: str, username: str, password: str):
     tenant_id = request.state.tenant["id"]
-    t = get_t(lang)
+    t = get_t(lang, request)
     lp = get_lang_prefix(lang)
     conn = get_conn()
     cur = conn.cursor()
@@ -1287,7 +1361,7 @@ async def admin_dashboard(request: Request, user: dict = Depends(require_manager
 
     cur.close()
     conn.close()
-    return templates.TemplateResponse(request, "admin.html", {"t": get_t("ko"), "lp": "", "user": user,
+    return templates.TemplateResponse(request, "admin.html", {"t": get_t("ko", request), "lp": "", "user": user,
         "visions": visions, "sermons": sermons, "shorts": shorts, "qtys": qtys,
         "news_list": news_list, "church_intro": church_intro, "about": about,
         "pastoral_posts": pastoral_posts, "members": members, "site_users": site_users,

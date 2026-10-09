@@ -1,0 +1,11 @@
+{% if site and site.preview %}
+<div style="position:sticky;top:0;z-index:2000;background:#111827;color:#fff;padding:10px 16px;font-size:.88rem;display:flex;gap:12px;align-items:center;justify-content:center;flex-wrap:wrap">
+    <span>👀 미리보기 중: {% if site.preview.kind == 'theme' %}테마 "{{ site.preview.label }}"{% else %}디자인안 #{{ site.preview.id }}{% endif %} (방문자에게는 아직 보이지 않습니다)</span>
+    {% if site.preview.kind == 'theme' %}
+    <form method="POST" action="/admin/site/catalog/apply" style="margin:0"><input type="hidden" name="preset" value="{{ site.preview.id }}"><button type="submit" style="background:#22c55e;color:#fff;border:none;border-radius:6px;padding:6px 14px;font-weight:600;cursor:pointer">이 테마 적용</button></form>
+    {% else %}
+    <form method="POST" action="/admin/site/versions/{{ site.preview.id }}/activate" style="margin:0"><button type="submit" style="background:#22c55e;color:#fff;border:none;border-radius:6px;padding:6px 14px;font-weight:600;cursor:pointer">이 디자인 적용</button></form>
+    {% endif %}
+    <a href="/admin#site-design" style="color:#93c5fd">디자인 설정으로 돌아가기</a>
+</div>
+{% endif %}

@@ -274,3 +274,19 @@ CREATE TABLE IF NOT EXISTS subscription_payments (
 
 CREATE INDEX IF NOT EXISTS idx_subscriptions_next_billing ON subscriptions(next_billing_at) WHERE billing_key IS NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_subscription_payments_tenant ON subscription_payments(tenant_id, created_at DESC);
+
+-- 교회별 사이트 설정(테마·홈 섹션·문구). 버전별로 쌓고 is_active 인 행 하나가 실제 사이트에 쓰인다.
+-- source: manual(관리자 직접 수정) / catalog(테마 카탈로그 적용) / ai(Claude 설정안) / rollback
+CREATE TABLE IF NOT EXISTS tenant_site_configs (
+    id SERIAL PRIMARY KEY,
+    tenant_id INTEGER NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+    config JSONB NOT NULL,
+    source TEXT NOT NULL DEFAULT 'manual',
+    note TEXT NOT NULL DEFAULT '',
+    is_active BOOLEAN NOT NULL DEFAULT FALSE,
+    created_by TEXT,
+    created_at TIMESTAMP DEFAULT NOW()
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_tenant_site_configs_active ON tenant_site_configs(tenant_id) WHERE is_active;
+CREATE INDEX IF NOT EXISTS idx_tenant_site_configs_tenant ON tenant_site_configs(tenant_id, id DESC);

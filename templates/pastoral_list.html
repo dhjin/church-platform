@@ -5,14 +5,15 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{{ t.pastoral_title }} - {{ t.church_name }}</title>
     <link rel="icon" href="/static/favicon.ico" type="image/x-icon">
-    <meta name="description" content="더하는 교회 목회 칼럼입니다. 말씀을 통한 묵상과 삶의 이야기를 나눕니다.">
+    <meta name="description" content="{{ t.church_name }} 목회 칼럼입니다. 말씀을 통한 묵상과 삶의 이야기를 나눕니다.">
     <meta property="og:type" content="website">
-    <meta property="og:site_name" content="더하는 교회">
+    <meta property="og:site_name" content="{{ t.church_name }}">
     <meta property="og:title" content="{{ t.pastoral_title }} - {{ t.church_name }}">
-    <meta property="og:description" content="더하는 교회 목회 칼럼입니다. 말씀을 통한 묵상과 삶의 이야기를 나눕니다.">
-    <meta property="og:image" content="https://thechurch-plus.org/static/images/og-image.jpg">
-    <meta property="og:url" content="https://thechurch-plus.org/pastoral">
+    <meta property="og:description" content="{{ t.church_name }} 목회 칼럼입니다. 말씀을 통한 묵상과 삶의 이야기를 나눕니다.">
+    <meta property="og:image" content="{{ site.og_image if site else "" }}">
+    <meta property="og:url" content="{{ site.page_url if site else "" }}">
     <link rel="stylesheet" href="/static/css/style.css?v=26">
+    {% include "_site_head.html" %}
     <style>
         .pastoral-page {
             padding: 100px 0 60px 0;
@@ -307,7 +308,7 @@
         <nav class="navbar">
             <div class="container">
                 <div class="logo">
-                    <h1><a href="{{ lp }}/#home" style="color: inherit; text-decoration: none; display: flex; align-items: center; gap: 8px;"><img src="/static/images/logo.png?v=2" alt="logo" style="height: 36px; width: 36px; object-fit: contain;"> {{ t.church_name }}</a></h1>
+                    <h1><a href="{{ lp }}/#home" style="color: inherit; text-decoration: none; display: flex; align-items: center; gap: 8px;">{% if site and site.logo_url %}<img src="{{ site.logo_url }}" alt="logo" style="height: 36px; width: 36px; object-fit: contain;">{% endif %} {{ t.church_name }}</a></h1>
                 </div>
                 <button class="mobile-menu-toggle" aria-label="menu">
                     <span></span>
@@ -387,7 +388,7 @@
                 {% for post in posts %}
                 <a href="{{ lp }}/pastoral/{{ post.id }}" class="post-list-item">
                     <div class="post-thumb">
-                        <img src="{{ post.image_path or '/static/images/logo.png' }}" alt="{{ post.title }}">
+                        {% if post.image_path or (site and site.logo_url) %}<img src="{{ post.image_path or site.logo_url }}" alt="{{ post.title }}">{% endif %}
                     </div>
                     <div class="post-title-col" data-meta="{{ post.created_at }} | {{ post.author or t.pastoral_default_author }} | {{ t.pastoral_col_views }} {{ post.views }}">
                         <h4>{{ post.title }}</h4>

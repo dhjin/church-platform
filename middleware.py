@@ -24,7 +24,7 @@ def _lookup_tenant(slug: str):
         conn = get_conn()
         cur = conn.cursor()
         cur.execute(
-            "SELECT id, slug, church_name, pastor_name, plan, status FROM tenants WHERE slug=%s AND status != 'suspended'",
+            "SELECT id, slug, church_name, pastor_name, plan, status, phone, address FROM tenants WHERE slug=%s AND status != 'suspended'",
             (slug,),
         )
         row = cur.fetchone()
@@ -39,6 +39,8 @@ def _lookup_tenant(slug: str):
             "pastor_name": row[3],
             "plan": row[4],
             "status": row[5],
+            "phone": row[6] or "",
+            "address": row[7] or "",
         }
     except Exception:
         return None

@@ -6,14 +6,15 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{{ t.about_title }} - {{ t.church_name }}</title>
     <link rel="icon" href="/static/favicon.ico" type="image/x-icon">
-    <meta name="description" content="더하는 교회의 비전과 사명, 핵심 가치를 소개합니다.">
+    <meta name="description" content="{{ t.church_name }}의 비전과 사명, 핵심 가치를 소개합니다.">
     <meta property="og:type" content="website">
-    <meta property="og:site_name" content="더하는 교회">
+    <meta property="og:site_name" content="{{ t.church_name }}">
     <meta property="og:title" content="{{ t.about_title }} - {{ t.church_name }}">
-    <meta property="og:description" content="더하는 교회의 비전과 사명, 핵심 가치를 소개합니다.">
-    <meta property="og:image" content="https://thechurch-plus.org/static/images/og-image.jpg">
-    <meta property="og:url" content="https://thechurch-plus.org/about">
+    <meta property="og:description" content="{{ t.church_name }}의 비전과 사명, 핵심 가치를 소개합니다.">
+    <meta property="og:image" content="{{ site.og_image if site else "" }}">
+    <meta property="og:url" content="{{ site.page_url if site else "" }}">
     <link rel="stylesheet" href="/static/css/style.css?v=26">
+    {% include "_site_head.html" %}
 </head>
 
 <body>
@@ -22,7 +23,7 @@
         <nav class="navbar">
             <div class="container">
                 <div class="logo">
-                    <h1><a href="{{ lp }}/#home" style="color: inherit; text-decoration: none; display: flex; align-items: center; gap: 8px;"><img src="/static/images/logo.png?v=2" alt="logo" style="height: 36px; width: 36px; object-fit: contain;"> {{ t.church_name }}</a></h1>
+                    <h1><a href="{{ lp }}/#home" style="color: inherit; text-decoration: none; display: flex; align-items: center; gap: 8px;">{% if site and site.logo_url %}<img src="{{ site.logo_url }}" alt="logo" style="height: 36px; width: 36px; object-fit: contain;">{% endif %} {{ t.church_name }}</a></h1>
                 </div>
                 <button class="mobile-menu-toggle" aria-label="menu">
                     <span></span>
@@ -74,17 +75,15 @@
                         <div class="vision-text">
                             {{ about.vision_content | replace('\n', '<br>') | safe }}
                         </div>
+                        {% if site and site.about_images %}
                         <div class="vision-images-stack">
+                            {% for img in site.about_images %}
                             <div class="vision-image">
-                                <img src="/static/images/gods-vision.png" alt="하나님의 비전">
+                                <img src="{{ img }}" alt="{{ t.church_name }}">
                             </div>
-                            <div class="vision-image">
-                                <img src="/static/images/mission-structure.png" alt="말씀 기반 공동체 형성을 통한 선교 확산 구조">
-                            </div>
-                            <div class="vision-image">
-                                <img src="/static/images/our-values.png" alt="우리의 가치">
-                            </div>
+                            {% endfor %}
                         </div>
+                        {% endif %}
                     </div>
                 </div>
 
@@ -93,9 +92,6 @@
                     <div class="mission-with-image">
                         <div class="mission-text">
                             {{ about.mission_content | replace('\n', '<br>') | safe }}
-                        </div>
-                        <div class="mission-image">
-                            <img src="/static/images/our-vision.png" alt="우리의 비전">
                         </div>
                     </div>
                 </div>
