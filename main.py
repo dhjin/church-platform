@@ -17,6 +17,7 @@ from pydantic import BaseModel
 from dotenv import load_dotenv
 
 from elasticsearch import Elasticsearch
+import anthropic
 
 from database import get_conn
 from middleware import TenantMiddleware
@@ -89,6 +90,21 @@ input.error{border-color:#e53e3e}
     <div class="card"><div class="icon">🎬</div><h3>설교·영상 관리</h3></div>
     <div class="card"><div class="icon">📰</div><h3>소식 &amp; 목양의 창</h3></div>
     <div class="card"><div class="icon">💝</div><h3>온라인 헌금 연동</h3></div>
+    <div class="card"><div class="icon">🤖</div><h3>AI 소식 초안 작성</h3></div>
+  </div>
+</div>
+
+<div class="section">
+  <h2>AI로 더 쉬운 교회 운영</h2>
+  <p class="sub">Anthropic Claude API 연동</p>
+  <div class="form-wrap" style="font-size:.9rem;line-height:1.8;color:#444">
+    <p>교회 관리자가 행사 날짜, 장소, 대상 같은 핵심 내용만 적으면 Claude가 교회소식 공지문 초안을 바로 작성합니다.
+    관리자는 초안을 확인하고 다듬어 게시하기만 하면 됩니다.</p>
+    <ul style="margin:12px 0 0 18px">
+      <li>교회소식·행사 공지 초안 자동 작성 (제공 중)</li>
+      <li>설교 요약과 주보 문안 작성 (개발 예정)</li>
+      <li>한국어·영어 다국어 소식 번역 (개발 예정)</li>
+    </ul>
   </div>
 </div>
 
@@ -160,7 +176,9 @@ input.error{border-color:#e53e3e}
     💬 초대 코드 및 가입 문의는 아래 카카오톡 채널로 연락 주시면 가장 빠르게 답변해 드립니다.<br>
     <span style="font-weight:600">— 더처치플러스 플랫폼 —</span>
   </p>
-  <p style="margin-top:16px">&copy; 2026 Church Platform · 월 19,000원 구독 (30일 무료 후)</p>
+  <p style="margin-top:16px">문의: <a href="mailto:__CONTACT_EMAIL__" style="color:#1e3a5f">__CONTACT_EMAIL__</a></p>
+  __BUSINESS_INFO__
+  <p style="margin-top:8px">&copy; 2026 Church Platform · 월 19,000원 구독 (30일 무료 후)</p>
 </div>
 
 <script>
@@ -220,6 +238,13 @@ async function submitForm() {
 }
 </script>
 </body></html>"""
+
+CONTACT_EMAIL = os.getenv("CONTACT_EMAIL", "contact@thechurch-plus.org")
+BUSINESS_INFO = os.getenv("BUSINESS_INFO", "")
+LANDING_HTML = LANDING_HTML.replace("__CONTACT_EMAIL__", CONTACT_EMAIL).replace(
+    "__BUSINESS_INFO__",
+    f'<p style="margin-top:8px">{BUSINESS_INFO}</p>' if BUSINESS_INFO else "",
+)
 
 TRANSLATIONS = {
     "ko": {
@@ -1330,6 +1355,57 @@ async def delete_site_user(user_id: int, user: dict = Depends(require_owner)):
 
 
 # ─── Admin: News ─────────────────────────────────────────────────────────────
+
+CLAUDE_MODEL = os.getenv("CLAUDE_MODEL", "claude-opus-5-5")
+_claude_client = anthropic.AsyncAnthropic() if os.getenv("ANTHROPIC_API_KEY") else None
+
+NEWS_DRAFT_SYSTEM = (
+    "당신은 한국 교회의 교회소식 게시판 공지문을 쓰는 비서입니다. "
+    "관리자가 준 메모를 바탕으로 성도들이 읽기 쉬운 따뜻하고 간결한 공지문을 작성하세요. "
+    "메모에 없는 날짜, 장소, 연락처 같은 사실은 지어내지 말고 필요하면 [확인 필요]로 표시하세요."
+)
+NEWS_DRAFT_SCHEMA = {
+    "type": "object",
+    "properties": {"title": {"type": "string"}, "content": {"type": "string"}},
+    "required": ["title", "content"],
+    "additionalProperties": False,
+}
+
+
+class NewsDraftRequest(BaseModel):
+    notes: str
+
+
+@app.post("/api/admin/news/ai-draft")
+async def ai_draft_news(body: NewsDraftRequest, user: dict = Depends(require_manager)):
+    notes = body.notes.strip()
+    if not notes:
+        raise HTTPException(status_code=400, detail="메모를 입력해 주세요.")
+    if len(notes) > 4000:
+        raise HTTPException(status_code=400, detail="메모는 4000자 이내로 입력해 주세요.")
+    if _claude_client is None:
+        raise HTTPException(status_code=503, detail="AI 기능이 설정되지 않았습니다.")
+    try:
+        response = await _claude_client.beta.messages.create(
+            model=CLAUDE_MODEL,
+            max_tokens=4000,
+            system=NEWS_DRAFT_SYSTEM,
+            messages=[{"role": "user", "content": notes}],
+            output_config={"effort": "low", "format": {"type": "json_schema", "schema": NEWS_DRAFT_SCHEMA}},
+            betas=["server-side-fallback-2026-07-01"],
+            fallbacks="default",
+        )
+    except anthropic.APIError:
+        raise HTTPException(status_code=502, detail="AI 초안 생성에 실패했습니다. 잠시 후 다시 시도해 주세요.")
+    if response.stop_reason != "end_turn":
+        raise HTTPException(status_code=502, detail="AI 초안을 만들지 못했습니다. 메모를 바꿔 다시 시도해 주세요.")
+    text = next((b.text for b in response.content if b.type == "text"), "")
+    try:
+        draft = _json.loads(text)
+    except ValueError:
+        raise HTTPException(status_code=502, detail="AI 응답을 읽지 못했습니다.")
+    return {"title": draft["title"], "content": draft["content"]}
+
 
 @app.post("/admin/news/create")
 async def create_news(
