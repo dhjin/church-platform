@@ -274,3 +274,63 @@ CREATE TABLE IF NOT EXISTS subscription_payments (
 
 CREATE INDEX IF NOT EXISTS idx_subscriptions_next_billing ON subscriptions(next_billing_at) WHERE billing_key IS NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_subscription_payments_tenant ON subscription_payments(tenant_id, created_at DESC);
+
+-- 교회별 사이트 설정(테마·홈 섹션·문구). 버전별로 쌓고 is_active 인 행 하나가 실제 사이트에 쓰인다.
+-- source: manual(관리자 직접 수정) / catalog(테마 카탈로그 적용) / ai(Claude 설정안) / rollback
+CREATE TABLE IF NOT EXISTS tenant_site_configs (
+    id SERIAL PRIMARY KEY,
+    tenant_id INTEGER NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+    config JSONB NOT NULL,
+    source TEXT NOT NULL DEFAULT 'manual',
+    note TEXT NOT NULL DEFAULT '',
+    is_active BOOLEAN NOT NULL DEFAULT FALSE,
+    created_by TEXT,
+    created_at TIMESTAMP DEFAULT NOW()
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_tenant_site_configs_active ON tenant_site_configs(tenant_id) WHERE is_active;
+CREATE INDEX IF NOT EXISTS idx_tenant_site_configs_tenant ON tenant_site_configs(tenant_id, id DESC);
+
+-- 요금제 내림 예약(다음 결제일에 적용)
+ALTER TABLE subscriptions ADD COLUMN IF NOT EXISTS scheduled_plan TEXT;
+
+-- 구독 외 1회 결제(AI 맞춤 제작 셋업비 등). 등록된 자동결제 수단으로 청구한다.
+-- status: done / failed / unknown(결과 미확인, 이중결제 방지를 위해 자동 재시도 안 함)
+CREATE TABLE IF NOT EXISTS one_time_payments (
+    id SERIAL PRIMARY KEY,
+    tenant_id INTEGER NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+    kind TEXT NOT NULL,
+    provider TEXT NOT NULL,
+    order_id TEXT UNIQUE NOT NULL,
+    amount INTEGER NOT NULL,
+    status TEXT NOT NULL,
+    payment_key TEXT,
+    failure_code TEXT,
+    failure_message TEXT,
+    approved_at TIMESTAMP,
+    created_at TIMESTAMP DEFAULT NOW()
+);
+
+-- Claude API 사용 기록(요금제별 월 사용 횟수 제한, 원가 확인)
+CREATE TABLE IF NOT EXISTS ai_usage (
+    id SERIAL PRIMARY KEY,
+    tenant_id INTEGER NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+    kind TEXT NOT NULL,
+    input_tokens INTEGER NOT NULL DEFAULT 0,
+    output_tokens INTEGER NOT NULL DEFAULT 0,
+    created_at TIMESTAMP DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_ai_usage_tenant ON ai_usage(tenant_id, kind, created_at);
+
+-- 프리미엄 요금제·셋업비 고객의 맞춤 제작 요청(운영자가 검수·제작)
+-- status: open / in_progress / done
+CREATE TABLE IF NOT EXISTS custom_requests (
+    id SERIAL PRIMARY KEY,
+    tenant_id INTEGER NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+    requested_by TEXT,
+    content TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'open',
+    admin_note TEXT NOT NULL DEFAULT '',
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP DEFAULT NOW()
+);

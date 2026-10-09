@@ -25,6 +25,7 @@ from middleware import TenantMiddleware
 from billing import config as billing_config
 from billing import service as billing
 from billing.providers import BillingProviderError, configured_providers
+import site_config
 
 load_dotenv()
 
@@ -389,8 +390,81 @@ TRANSLATIONS = {
 }
 
 
-def get_t(lang: str = "ko") -> dict:
-    return TRANSLATIONS.get(lang, TRANSLATIONS["ko"])
+def current_site_config(request: Request) -> Optional[dict]:
+    """요청한 교회의 사이트 설정. 관리자는 ?preview=<버전> 또는 ?preview_theme=<카탈로그 테마> 로 미리볼 수 있다."""
+    tenant = getattr(request.state, "tenant", None)
+    if tenant is None:
+        return None
+    if hasattr(request.state, "site_config"):
+        return request.state.site_config
+    cfg = site_config.load_active_config(tenant["id"])
+    preview = None
+    version, theme = request.query_params.get("preview"), request.query_params.get("preview_theme")
+    if (version or theme) and _is_tenant_admin(request):
+        if version and version.isdigit():
+            draft = site_config.load_version(tenant["id"], int(version))
+            if draft is not None:
+                cfg, preview = draft, {"kind": "version", "id": int(version)}
+        elif theme in site_config.THEME_PRESETS:
+            cfg = site_config.apply_catalog_theme(cfg, theme)
+            preview = {"kind": "theme", "id": theme, "label": site_config.THEME_PRESETS[theme]["label"]}
+    request.state.site_config = cfg
+    request.state.site_preview = preview
+    return cfg
+
+
+def _is_tenant_admin(request: Request) -> bool:
+    user = get_current_user(request)
+    return bool(user and user["role"] in ADMIN_ROLES)
+
+
+def get_t(lang: str = "ko", request: Optional[Request] = None) -> dict:
+    t = dict(TRANSLATIONS.get(lang, TRANSLATIONS["ko"]))
+    tenant = getattr(request.state, "tenant", None) if request is not None else None
+    if tenant is None:
+        return t
+    cfg = current_site_config(request)
+    texts = cfg["texts"]
+    pastor = tenant.get("pastor_name") or ""
+    pastor_title = ("Senior Pastor " if lang == "en" else "담임목사 ") + pastor if pastor else ""
+    t.update({
+        "church_name": tenant["church_name"], "church_name_full": tenant["church_name"],
+        "denomination": texts["denomination"],
+        "senior_pastor": pastor_title, "senior_pastor_short": pastor, "pastor_label": pastor_title,
+        "footer_address": tenant.get("address", ""), "info_location_val": tenant.get("address", ""),
+        "footer_tel": tenant.get("phone", ""), "footer_phone": tenant.get("phone", ""),
+    })
+    if lang == "ko":
+        t.update({
+            "hero_title": texts["hero_title"], "hero_subtitle": texts["hero_subtitle"],
+            "hero_info": texts["hero_info"], "welcome_title": texts["welcome_title"],
+            "mission_5_title": texts["mission_title"], "footer_blessing": texts["footer_blessing"],
+        })
+    return t
+
+
+def site_context(request: Request) -> dict:
+    """모든 템플릿에 들어가는 교회별 디자인 정보(테마 CSS, 로고, 홈 섹션, 공유용 URL)."""
+    cfg = current_site_config(request)
+    if cfg is None:
+        return {"site": None}
+    base = str(request.base_url).rstrip("/")
+    logo = cfg["logo_path"]
+    return {"site": {
+        "theme_css": site_config.theme_css(cfg),
+        "font_href": site_config.font_href(cfg),
+        "logo_url": logo,
+        "og_image": base + (logo or "/static/images/og-image.jpg"),
+        "base_url": base,
+        "page_url": base + request.url.path,
+        "home_sections": cfg["home_sections"],
+        "worship_schedule": cfg["worship_schedule"],
+        "about_images": cfg["about_images"],
+        "preview": getattr(request.state, "site_preview", None),
+    }}
+
+
+templates.context_processors.append(site_context)
 
 
 def get_lang_prefix(lang: str) -> str:
@@ -638,7 +712,7 @@ async def list_invite_codes(request: Request):
 async def _home(request: Request, lang: str = "ko"):
     tenant = request.state.tenant
     tenant_id = tenant["id"]
-    t = get_t(lang)
+    t = get_t(lang, request)
     lp = get_lang_prefix(lang)
     conn = get_conn()
     cur = conn.cursor()
@@ -735,7 +809,7 @@ async def home_en(request: Request):
 
 async def _about_page(request: Request, lang: str = "ko"):
     tenant_id = request.state.tenant["id"]
-    t = get_t(lang)
+    t = get_t(lang, request)
     lp = get_lang_prefix(lang)
     conn = get_conn()
     cur = conn.cursor()
@@ -772,7 +846,7 @@ async def about_page_en(request: Request):
 
 async def _direction_page(request: Request, lang: str = "ko"):
     tenant_id = request.state.tenant["id"]
-    t = get_t(lang)
+    t = get_t(lang, request)
     lp = get_lang_prefix(lang)
     conn = get_conn()
     cur = conn.cursor()
@@ -800,7 +874,7 @@ async def direction_page_en(request: Request):
 
 async def _people_page(request: Request, lang: str = "ko"):
     tenant_id = request.state.tenant["id"]
-    t = get_t(lang)
+    t = get_t(lang, request)
     lp = get_lang_prefix(lang)
     conn = get_conn()
     cur = conn.cursor()
@@ -838,7 +912,7 @@ async def people_page_en(request: Request):
 
 async def _pastoral_list(request: Request, lang: str = "ko", page: int = 1, q: str = ""):
     tenant_id = request.state.tenant["id"]
-    t = get_t(lang)
+    t = get_t(lang, request)
     lp = get_lang_prefix(lang)
     per_page = 20
     offset = (page - 1) * per_page
@@ -891,7 +965,7 @@ async def pastoral_list_en(request: Request, page: int = 1, q: str = ""):
 
 async def _pastoral_detail(request: Request, post_id: int, lang: str = "ko"):
     tenant_id = request.state.tenant["id"]
-    t = get_t(lang)
+    t = get_t(lang, request)
     lp = get_lang_prefix(lang)
     conn = get_conn()
     cur = conn.cursor()
@@ -958,7 +1032,7 @@ async def pastoral_detail_en(request: Request, post_id: int):
 
 async def _view_news(request: Request, news_id: int, lang: str = "ko"):
     tenant_id = request.state.tenant["id"]
-    t = get_t(lang)
+    t = get_t(lang, request)
     lp = get_lang_prefix(lang)
     conn = get_conn()
     cur = conn.cursor()
@@ -1025,33 +1099,33 @@ async def view_news_en(request: Request, news_id: int):
 async def login_page(request: Request):
     if not getattr(request.state, "tenant", None):
         raise HTTPException(404)
-    return templates.TemplateResponse(request, "login.html", {"t": get_t("ko"), "lp": ""})
+    return templates.TemplateResponse(request, "login.html", {"t": get_t("ko", request), "lp": ""})
 
 
 @app.get("/en/login", response_class=HTMLResponse)
 async def login_page_en(request: Request):
     if not getattr(request.state, "tenant", None):
         raise HTTPException(404)
-    return templates.TemplateResponse(request, "login.html", {"t": get_t("en"), "lp": "/en"})
+    return templates.TemplateResponse(request, "login.html", {"t": get_t("en", request), "lp": "/en"})
 
 
 @app.get("/register", response_class=HTMLResponse)
 async def register_page(request: Request):
     if not getattr(request.state, "tenant", None):
         raise HTTPException(404)
-    return templates.TemplateResponse(request, "register.html", {"t": get_t("ko"), "lp": ""})
+    return templates.TemplateResponse(request, "register.html", {"t": get_t("ko", request), "lp": ""})
 
 
 @app.get("/en/register", response_class=HTMLResponse)
 async def register_page_en(request: Request):
     if not getattr(request.state, "tenant", None):
         raise HTTPException(404)
-    return templates.TemplateResponse(request, "register.html", {"t": get_t("en"), "lp": "/en"})
+    return templates.TemplateResponse(request, "register.html", {"t": get_t("en", request), "lp": "/en"})
 
 
 async def _register_post(request: Request, lang: str, name: str, email: str):
     tenant_id = request.state.tenant["id"]
-    t = get_t(lang)
+    t = get_t(lang, request)
     lp = get_lang_prefix(lang)
     errors = []
     if len(name.strip()) < 2:
@@ -1094,7 +1168,7 @@ async def register_en(request: Request, name: str = Form(...), email: str = Form
 
 async def _login_post(request: Request, lang: str, username: str, password: str):
     tenant_id = request.state.tenant["id"]
-    t = get_t(lang)
+    t = get_t(lang, request)
     lp = get_lang_prefix(lang)
     conn = get_conn()
     cur = conn.cursor()
@@ -1287,7 +1361,7 @@ async def admin_dashboard(request: Request, user: dict = Depends(require_manager
 
     cur.close()
     conn.close()
-    return templates.TemplateResponse(request, "admin.html", {"t": get_t("ko"), "lp": "", "user": user,
+    return templates.TemplateResponse(request, "admin.html", {"t": get_t("ko", request), "lp": "", "user": user,
         "visions": visions, "sermons": sermons, "shorts": shorts, "qtys": qtys,
         "news_list": news_list, "church_intro": church_intro, "about": about,
         "pastoral_posts": pastoral_posts, "members": members, "site_users": site_users,
@@ -1874,6 +1948,402 @@ async def upload_image(
     return JSONResponse({"url": f"/uploads/{tenant_id}/{fname}"})
 
 
+# ─── Site design (교회별 디자인·테마 카탈로그) ────────────────────────────────
+
+SITE_IMAGE_EXTS = (".jpg", ".jpeg", ".png", ".gif", ".webp")
+
+
+def _site_redirect(**params) -> RedirectResponse:
+    return RedirectResponse(url="/admin/site?" + urlencode(params) if params else "/admin/site", status_code=303)
+
+
+def _save_site_image(tenant_id: int, image: UploadFile, prefix: str) -> Optional[str]:
+    if not image or not image.filename:
+        return None
+    ext = Path(image.filename).suffix.lower()
+    if ext not in SITE_IMAGE_EXTS:
+        raise HTTPException(400, "지원하지 않는 파일 형식입니다. (jpg, png, gif, webp)")
+    fname = f"{prefix}_{secrets.token_hex(6)}{ext}"
+    with (get_upload_dir(tenant_id) / fname).open("wb") as f:
+        shutil.copyfileobj(image.file, f)
+    return f"/uploads/{tenant_id}/{fname}"
+
+
+@app.get("/admin/site", response_class=HTMLResponse)
+async def site_design_page(request: Request, msg: str = "", error: str = "", ai: str = "",
+                           user: dict = Depends(require_admin)):
+    tenant = request.state.tenant
+    cfg = site_config.load_active_config(tenant["id"])
+    proposals = []
+    for vid in ai.split(",")[:3]:
+        if vid.isdigit():
+            draft = site_config.load_version(tenant["id"], int(vid))
+            if draft is not None:
+                proposals.append({"id": int(vid), "cfg": draft})
+    conn = get_conn()
+    try:
+        plan = billing.current_plan(conn, tenant["id"])
+        setup_paid = any(p["kind"] == "setup" and p["status"] == "done"
+                         for p in billing.list_one_time_payments(conn, tenant["id"]))
+        with conn.cursor() as cur:
+            cur.execute(
+                "SELECT id, content, status, admin_note, created_at FROM custom_requests WHERE tenant_id=%s ORDER BY id DESC LIMIT 20",
+                (tenant["id"],),
+            )
+            custom_requests = [{"id": r[0], "content": r[1], "status": r[2], "admin_note": r[3], "created_at": r[4]}
+                               for r in cur.fetchall()]
+    finally:
+        conn.close()
+    plan_info = billing_config.plan_info(plan)
+    return templates.TemplateResponse(request, "site_design.html", {
+        "user": user, "tenant": tenant, "cfg": cfg, "msg": msg, "error": error,
+        "proposals": proposals, "ai_enabled": _claude_client is not None,
+        "ai_used": _ai_usage_this_month(tenant["id"]), "ai_limit": plan_info["ai_designs_per_month"],
+        "plan_label": plan_info["label"], "interview_fields": AI_INTERVIEW_FIELDS,
+        "can_custom": plan_info["custom_requests"] or setup_paid, "custom_requests": custom_requests,
+        "catalog": site_config.THEME_PRESETS, "fonts": site_config.FONTS,
+        "hero_styles": site_config.HERO_STYLES, "section_labels": site_config.HOME_SECTIONS,
+        "versions": site_config.list_versions(tenant["id"]),
+        "schedule_text": "\n".join(f"{r['name']} | {r['time']}" for r in cfg["worship_schedule"]),
+    })
+
+
+@app.post("/admin/site/info")
+async def site_update_info(
+    request: Request, church_name: str = Form(...), pastor_name: str = Form(""),
+    phone: str = Form(""), address: str = Form(""), denomination: str = Form(""),
+    user: dict = Depends(require_admin),
+):
+    tenant_id = user["tenant_id"]
+    church_name = church_name.strip()[:60]
+    if not church_name:
+        return _site_redirect(error="교회 이름을 입력해 주세요.")
+    conn = get_conn()
+    try:
+        with conn.cursor() as cur:
+            cur.execute(
+                "UPDATE tenants SET church_name=%s, pastor_name=%s, phone=%s, address=%s WHERE id=%s",
+                (church_name, pastor_name.strip()[:40], phone.strip()[:40], address.strip()[:200], tenant_id),
+            )
+        conn.commit()
+    finally:
+        conn.close()
+    cfg = site_config.load_active_config(tenant_id)
+    if cfg["texts"]["denomination"] != denomination.strip():
+        cfg = site_config.normalize_config({"texts": {"denomination": denomination}}, base=cfg)
+        site_config.save_version(tenant_id, cfg, "manual", "소속 변경", created_by=user["username"])
+    return _site_redirect(msg="기본 정보를 저장했습니다.")
+
+
+@app.post("/admin/site/design")
+async def site_update_design(request: Request, user: dict = Depends(require_admin)):
+    tenant_id = user["tenant_id"]
+    form = await request.form()
+    cfg = site_config.load_active_config(tenant_id)
+    sections = sorted(
+        (int(form.get(f"order_{key}") or 99), key)
+        for key in site_config.HOME_SECTIONS if form.get(f"show_{key}")
+    )
+    schedule = []
+    for line in str(form.get("worship_schedule", "")).splitlines():
+        name, _, time = line.partition("|")
+        schedule.append({"name": name, "time": time})
+    raw = {
+        "theme": {
+            "preset": cfg["theme"]["preset"],
+            "primary": form.get("primary"), "accent": form.get("accent"),
+            "font": form.get("font"), "hero_style": form.get("hero_style"),
+        },
+        "texts": {k: str(form.get(k, "")) for k in site_config.TEXT_LIMITS if k not in ("denomination", "concept")},
+        "home_sections": [key for _, key in sections],
+        "worship_schedule": schedule,
+    }
+    cfg = site_config.normalize_config(raw, base=cfg)
+    site_config.save_version(tenant_id, cfg, "manual", "디자인 직접 수정", created_by=user["username"])
+    return _site_redirect(msg="디자인을 저장했습니다. 홈페이지에 바로 반영됩니다.")
+
+
+@app.post("/admin/site/catalog/apply")
+async def site_apply_catalog(preset: str = Form(...), user: dict = Depends(require_admin)):
+    if preset not in site_config.THEME_PRESETS:
+        return _site_redirect(error="알 수 없는 테마입니다.")
+    tenant_id = user["tenant_id"]
+    cfg = site_config.apply_catalog_theme(site_config.load_active_config(tenant_id), preset)
+    label = site_config.THEME_PRESETS[preset]["label"]
+    site_config.save_version(tenant_id, cfg, "catalog", f"테마 카탈로그: {label}", created_by=user["username"])
+    return _site_redirect(msg=f"'{label}' 테마를 적용했습니다.")
+
+
+@app.post("/admin/site/versions/{version_id}/activate")
+async def site_activate_version(version_id: int, user: dict = Depends(require_admin)):
+    if not site_config.activate_version(user["tenant_id"], version_id):
+        return _site_redirect(error="해당 디자인 버전을 찾을 수 없습니다.")
+    return _site_redirect(msg=f"디자인 #{version_id} 을(를) 적용했습니다.")
+
+
+@app.post("/admin/site/images")
+async def site_update_images(
+    logo: Optional[UploadFile] = File(None), about_image: Optional[UploadFile] = File(None),
+    remove_logo: str = Form(""), remove_about: List[str] = Form(default=[]),
+    user: dict = Depends(require_admin),
+):
+    tenant_id = user["tenant_id"]
+    cfg = site_config.load_active_config(tenant_id)
+    logo_path = "" if remove_logo else cfg["logo_path"]
+    new_logo = _save_site_image(tenant_id, logo, "logo")
+    if new_logo:
+        logo_path = new_logo
+    about_images = [p for p in cfg["about_images"] if p not in remove_about]
+    new_about = _save_site_image(tenant_id, about_image, "about")
+    if new_about:
+        if len(about_images) >= site_config.MAX_ABOUT_IMAGES:
+            return _site_redirect(error=f"교회소개 이미지는 최대 {site_config.MAX_ABOUT_IMAGES}장까지 올릴 수 있습니다.")
+        about_images.append(new_about)
+    cfg = site_config.normalize_config({"logo_path": logo_path, "about_images": about_images}, base=cfg)
+    site_config.save_version(tenant_id, cfg, "manual", "이미지 변경", created_by=user["username"])
+    return _site_redirect(msg="이미지를 저장했습니다.")
+
+
+CUSTOM_REQUEST_STATUSES = {"open": "접수", "in_progress": "제작 중", "done": "완료"}
+
+
+@app.post("/admin/site/custom-request")
+async def site_custom_request(content: str = Form(...), user: dict = Depends(require_admin)):
+    tenant_id = user["tenant_id"]
+    content = content.strip()[:3000]
+    if not content:
+        return _site_redirect(error="요청 내용을 입력해 주세요.")
+    conn = get_conn()
+    try:
+        plan = billing.current_plan(conn, tenant_id)
+        setup_paid = any(p["kind"] == "setup" and p["status"] == "done" for p in billing.list_one_time_payments(conn, tenant_id))
+        if not (billing_config.plan_info(plan)["custom_requests"] or setup_paid):
+            return _site_redirect(error="맞춤 제작 요청은 프리미엄 요금제 또는 AI 맞춤 제작 셋업 신청 후 이용할 수 있습니다.")
+        with conn.cursor() as cur:
+            cur.execute(
+                "INSERT INTO custom_requests (tenant_id, requested_by, content) VALUES (%s, %s, %s)",
+                (tenant_id, user["username"], content),
+            )
+        conn.commit()
+    finally:
+        conn.close()
+    return _site_redirect(msg="맞춤 제작 요청을 접수했습니다. 운영자가 확인 후 진행 상황을 이곳에 남깁니다.")
+
+
+@app.get("/api/admin/custom-requests")
+async def list_custom_requests(request: Request, status: str = ""):
+    require_platform_admin(request)
+    conn = get_conn()
+    try:
+        with conn.cursor() as cur:
+            cur.execute(
+                """SELECT r.id, t.slug, t.church_name, r.requested_by, r.content, r.status, r.admin_note, r.created_at
+                   FROM custom_requests r JOIN tenants t ON t.id = r.tenant_id
+                   WHERE (%s = '' OR r.status = %s) ORDER BY r.id DESC""",
+                (status, status),
+            )
+            rows = cur.fetchall()
+    finally:
+        conn.close()
+    keys = ["id", "slug", "church_name", "requested_by", "content", "status", "admin_note", "created_at"]
+    return {"requests": [dict(zip(keys, r)) for r in rows]}
+
+
+class CustomRequestUpdate(BaseModel):
+    status: str
+    admin_note: str = ""
+
+
+@app.post("/api/admin/custom-requests/{request_id}")
+async def update_custom_request(request: Request, request_id: int, body: CustomRequestUpdate):
+    require_platform_admin(request)
+    if body.status not in CUSTOM_REQUEST_STATUSES:
+        raise HTTPException(400, "status 는 open / in_progress / done 중 하나입니다.")
+    conn = get_conn()
+    try:
+        with conn.cursor() as cur:
+            cur.execute(
+                "UPDATE custom_requests SET status=%s, admin_note=%s, updated_at=NOW() WHERE id=%s",
+                (body.status, body.admin_note[:2000], request_id),
+            )
+            updated = cur.rowcount
+        conn.commit()
+    finally:
+        conn.close()
+    if not updated:
+        raise HTTPException(404)
+    return {"ok": True}
+
+
+# ─── AI 맞춤 디자인 (Claude 요구사항 인터뷰 → 디자인안) ──────────────────────
+
+AI_DESIGN_SYSTEM = (
+    "당신은 한국 교회 홈페이지를 맞춤 디자인하는 디자이너입니다. 교회가 답한 요구사항을 읽고 "
+    "그 교회의 컨셉에 맞는 홈페이지 디자인안을 만듭니다. 디자인안은 정해진 테마 카탈로그·글꼴·홈 섹션 부품을 "
+    "조합한 설정이며 HTML은 만들지 않습니다.\n"
+    "- theme.preset 은 가장 가까운 카탈로그 테마, primary/accent 는 컨셉에 맞게 조정한 #rrggbb 색입니다. "
+    "primary 는 흰 글씨가 잘 보이는 진한 색이어야 합니다.\n"
+    "- texts 는 한국어로, 성도와 처음 오는 분이 읽기 쉬운 따뜻한 문장으로 씁니다. 글자 수 제한: "
+    + ", ".join(f"{k} {v}자" for k, v in site_config.TEXT_LIMITS.items()) + ".\n"
+    "- denomination 은 요구사항에 나온 소속 교단을 그대로 쓰고, 없으면 빈 문자열로 둡니다.\n"
+    "- worship_schedule 은 요구사항에 나온 예배만 넣고 시간을 지어내지 마세요. 정보가 없으면 현재 설정을 유지합니다.\n"
+    "- home_sections 는 교회가 강조하고 싶은 사역이 앞에 오도록 순서를 정합니다. "
+    "섹션: " + ", ".join(f"{k}({v})" for k, v in site_config.HOME_SECTIONS.items()) + ".\n"
+    "- concept 에는 이 안의 컨셉과 선택 이유를 2~3문장으로 씁니다.\n"
+    "테마 카탈로그: " + "; ".join(f"{k}: {v['label']} - {v['description']}" for k, v in site_config.THEME_PRESETS.items())
+    + "\n글꼴: " + ", ".join(f"{k}({v['label']})" for k, v in site_config.FONTS.items())
+    + "\n첫 화면 스타일: " + ", ".join(f"{k}({v})" for k, v in site_config.HERO_STYLES.items())
+)
+
+AI_PROPOSALS_SCHEMA = {
+    "type": "object",
+    "properties": {"proposals": {"type": "array", "items": site_config.AI_CONFIG_SCHEMA}},
+    "required": ["proposals"],
+    "additionalProperties": False,
+}
+
+AI_INTERVIEW_FIELDS = {
+    "mood": "교회 분위기와 컨셉",
+    "audience": "주요 성도층·대상",
+    "ministries": "강조하고 싶은 사역",
+    "colors": "원하는 색감·느낌",
+    "worship": "예배 시간",
+    "extra": "기타 요청",
+}
+
+
+def _ai_design_limit(tenant_id: int) -> int:
+    conn = get_conn()
+    try:
+        plan = billing.current_plan(conn, tenant_id)
+    finally:
+        conn.close()
+    return billing_config.PLANS[plan]["ai_designs_per_month"]
+
+
+def _ai_usage_this_month(tenant_id: int) -> int:
+    conn = get_conn()
+    try:
+        with conn.cursor() as cur:
+            cur.execute(
+                "SELECT COUNT(*) FROM ai_usage WHERE tenant_id=%s AND kind='site_design' "
+                "AND created_at >= date_trunc('month', NOW())",
+                (tenant_id,),
+            )
+            return cur.fetchone()[0]
+    finally:
+        conn.close()
+
+
+def _record_ai_usage(tenant_id: int, response) -> None:
+    usage = getattr(response, "usage", None)
+    conn = get_conn()
+    try:
+        with conn.cursor() as cur:
+            cur.execute(
+                "INSERT INTO ai_usage (tenant_id, kind, input_tokens, output_tokens) VALUES (%s, 'site_design', %s, %s)",
+                (tenant_id, getattr(usage, "input_tokens", 0) or 0, getattr(usage, "output_tokens", 0) or 0),
+            )
+        conn.commit()
+    finally:
+        conn.close()
+
+
+async def _ask_claude_for_designs(prompt: str) -> tuple:
+    if _claude_client is None:
+        raise HTTPException(503, "AI 기능이 설정되지 않았습니다.")
+    try:
+        response = await _claude_client.beta.messages.create(
+            model=CLAUDE_MODEL,
+            max_tokens=16000,
+            system=AI_DESIGN_SYSTEM,
+            messages=[{"role": "user", "content": prompt}],
+            output_config={"effort": "medium", "format": {"type": "json_schema", "schema": AI_PROPOSALS_SCHEMA}},
+            betas=["server-side-fallback-2026-07-01"],
+            fallbacks="default",
+        )
+    except anthropic.APIError:
+        raise HTTPException(502, "AI 디자인안 생성에 실패했습니다. 잠시 후 다시 시도해 주세요.")
+    if response.stop_reason != "end_turn":
+        raise HTTPException(502, "AI 디자인안을 만들지 못했습니다. 요구사항을 바꿔 다시 시도해 주세요.")
+    text = next((b.text for b in response.content if b.type == "text"), "")
+    try:
+        proposals = _json.loads(text)["proposals"]
+    except (ValueError, KeyError, TypeError):
+        raise HTTPException(502, "AI 응답을 읽지 못했습니다.")
+    return proposals, response
+
+
+def _church_facts(tenant: dict, cfg: dict) -> str:
+    return _json.dumps({
+        "church_name": tenant["church_name"], "pastor_name": tenant.get("pastor_name") or "",
+        "address": tenant.get("address", ""),
+        "current_config": {k: cfg[k] for k in ("theme", "texts", "home_sections", "worship_schedule")},
+    }, ensure_ascii=False)
+
+
+async def _generate_ai_designs(request: Request, user: dict, prompt: str, base_cfg: dict, label: str) -> list:
+    tenant_id = user["tenant_id"]
+    limit = _ai_design_limit(tenant_id)
+    if _ai_usage_this_month(tenant_id) >= limit:
+        raise HTTPException(402, "이번 달 AI 디자인 횟수를 모두 사용했습니다. 요금제를 올리면 더 만들 수 있습니다.")
+    proposals, response = await _ask_claude_for_designs(prompt)
+    _record_ai_usage(tenant_id, response)
+    ids = []
+    for proposal in proposals[:3]:
+        cfg = site_config.normalize_config(proposal, base=base_cfg)
+        note = f"AI {label}: " + (cfg["texts"]["concept"][:60] or site_config.THEME_PRESETS[cfg["theme"]["preset"]]["label"])
+        ids.append(site_config.save_version(tenant_id, cfg, "ai", note, activate=False, created_by=user["username"]))
+    if not ids:
+        raise HTTPException(502, "AI 디자인안을 만들지 못했습니다.")
+    return ids
+
+
+def _ai_error_redirect(exc: HTTPException) -> RedirectResponse:
+    return _site_redirect(error=exc.detail)
+
+
+@app.post("/admin/site/ai/generate")
+async def site_ai_generate(request: Request, user: dict = Depends(require_admin)):
+    form = await request.form()
+    answers = {label: str(form.get(key, "")).strip()[:800] for key, label in AI_INTERVIEW_FIELDS.items()}
+    if not any(answers.values()):
+        return _site_redirect(error="요구사항을 하나 이상 입력해 주세요.")
+    tenant = request.state.tenant
+    cfg = site_config.load_active_config(tenant["id"])
+    prompt = (
+        "교회 정보와 현재 설정:\n" + _church_facts(tenant, cfg)
+        + "\n\n요구사항 인터뷰 답변:\n" + "\n".join(f"- {k}: {v or '(답변 없음)'}" for k, v in answers.items())
+        + "\n\n서로 다른 컨셉의 디자인안 2개를 만들어 주세요."
+    )
+    try:
+        ids = await _generate_ai_designs(request, user, prompt, cfg, "디자인안")
+    except HTTPException as exc:
+        return _ai_error_redirect(exc)
+    return RedirectResponse("/admin/site?" + urlencode({"ai": ",".join(map(str, ids))}) + "#ai", status_code=303)
+
+
+@app.post("/admin/site/ai/refine/{version_id}")
+async def site_ai_refine(request: Request, version_id: int, feedback: str = Form(...), user: dict = Depends(require_admin)):
+    tenant = request.state.tenant
+    draft = site_config.load_version(tenant["id"], version_id)
+    if draft is None:
+        return _site_redirect(error="해당 디자인안을 찾을 수 없습니다.")
+    feedback = feedback.strip()[:800]
+    if not feedback:
+        return _site_redirect(error="수정 요청을 입력해 주세요.")
+    prompt = (
+        "교회 정보와 수정할 디자인안:\n" + _church_facts(tenant, draft)
+        + "\n\n교회의 수정 요청: " + feedback
+        + "\n\n요청을 반영해 고친 디자인안 1개를 만들어 주세요. 요청과 관계없는 부분은 그대로 유지하세요."
+    )
+    try:
+        ids = await _generate_ai_designs(request, user, prompt, draft, "수정안")
+    except HTTPException as exc:
+        return _ai_error_redirect(exc)
+    return RedirectResponse("/admin/site?" + urlencode({"ai": ",".join(map(str, ids[:1]))}) + "#ai", status_code=303)
+
+
 # ─── Bulletin (주보) ─────────────────────────────────────────────────────────
 
 @app.get("/bulletin", response_class=HTMLResponse)
@@ -2108,6 +2578,7 @@ async def billing_page(request: Request, result: str = "", error: str = "", user
     try:
         sub = billing.ensure_subscription(conn, tenant_id)
         payments = billing.list_payments(conn, tenant_id)
+        one_time = billing.list_one_time_payments(conn, tenant_id)
         cur = conn.cursor()
         cur.execute("SELECT church_name, trial_ends_at FROM tenants WHERE id=%s", (tenant_id,))
         church_name, trial_ends_at = cur.fetchone()
@@ -2117,7 +2588,12 @@ async def billing_page(request: Request, result: str = "", error: str = "", user
     return templates.TemplateResponse(request, "billing.html", {
         "user": user, "sub": sub, "payments": payments, "church_name": church_name,
         "trial_ends_at": trial_ends_at, "status_label": SUBSCRIPTION_STATUS_LABELS.get(sub["status"], sub["status"]),
-        "plan_name": billing_config.PLAN_NAME, "plan_amount": billing_config.PLAN_AMOUNT,
+        "plan_name": billing_config.plan_info(sub["plan"])["order_name"],
+        "plan_amount": billing_config.plan_info(sub["plan"])["amount"],
+        "plans": billing_config.PLANS, "plan_order": billing_config.PLAN_ORDER,
+        "current_plan": sub["plan"] if sub["plan"] in billing_config.PLANS else billing_config.PLAN_CODE,
+        "one_time": one_time, "setup_fee": billing_config.SETUP_FEE_AMOUNT,
+        "setup_paid": any(p["kind"] == "setup" and p["status"] in ("done", "unknown") for p in one_time),
         "toss_client_key": billing_config.TOSS_CLIENT_KEY, "result": result, "error": error,
         "providers": [p.name for p in configured_providers()],
     })
@@ -2215,6 +2691,32 @@ async def billing_cancel(user: dict = Depends(require_admin)):
     finally:
         conn.close()
     return _billing_redirect(result="canceled")
+
+
+@app.post("/admin/billing/plan")
+async def billing_change_plan(plan: str = Form(...), user: dict = Depends(require_admin)):
+    if plan not in billing_config.PLANS:
+        return _billing_redirect(error="알 수 없는 요금제입니다.")
+    conn = get_conn()
+    try:
+        sub = billing.change_plan(conn, user["tenant_id"], plan)
+    finally:
+        conn.close()
+    return _billing_redirect(result="plan_scheduled" if sub["scheduled_plan"] else "plan_changed")
+
+
+@app.post("/admin/billing/setup-fee")
+async def billing_setup_fee(user: dict = Depends(require_admin)):
+    conn = get_conn()
+    try:
+        payment = billing.charge_setup_fee(conn, user["tenant_id"])
+    except BillingProviderError as e:
+        return _billing_redirect(error=e.message)
+    finally:
+        conn.close()
+    if payment["status"] == "failed":
+        return _billing_redirect(error=f"셋업비 결제에 실패했습니다: {payment['failure_message'] or payment['failure_code']}")
+    return _billing_redirect(result="setup_paid" if payment["status"] == "done" else "setup_unknown")
 
 
 @app.get("/api/admin/billing/subscriptions")

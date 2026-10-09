@@ -4,8 +4,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>관리자 페이지 - 더하는 교회</title>
+    <title>관리자 페이지 - {{ t.church_name }}</title>
     <link rel="stylesheet" href="/static/css/style.css?v=26">
+    {% include "_site_head.html" %}
     <link rel="stylesheet" href="/static/css/admin.css?v=15">
 </head>
 
@@ -15,12 +16,13 @@
         <header class="admin-header">
             <div class="container">
                 <div class="admin-nav">
-                    <h1 style="display: flex; align-items: center; gap: 8px;"><img src="/static/images/logo.png?v=2" alt="로고" style="height: 36px; width: 36px; object-fit: contain;"> 더하는 교회 관리자</h1>
+                    <h1 style="display: flex; align-items: center; gap: 8px;">{% if site and site.logo_url %}<img src="{{ site.logo_url }}" alt="logo" style="height: 36px; width: 36px; object-fit: contain;">{% endif %} {{ t.church_name }} 관리자</h1>
                     <div class="admin-user-info">
                         {% if user.role == 'owner' %}
                         <a href="/planner/dashboard" style="color:#a78bfa;font-weight:600;font-size:.85rem;margin-right:8px">🙏 목양 플래너</a>
                         {% endif %}
                         {% if user.role in ['owner', 'admin'] %}
+                        <a href="/admin/site" style="color:#fcd34d;font-weight:600;font-size:.85rem;margin-right:8px">🎨 사이트 디자인</a>
                         <a href="/admin/billing" style="color:#93c5fd;font-weight:600;font-size:.85rem;margin-right:8px">💳 구독·결제</a>
                         {% endif %}
                         <span>👤 {{ user.username }}</span>
@@ -134,7 +136,7 @@
                             </div>
                             <div class="form-group">
                                 <label for="pastor">설교자</label>
-                                <input type="text" id="pastor" name="pastor" value="김한기 목사" required>
+                                <input type="text" id="pastor" name="pastor" value="{{ t.senior_pastor }}" required>
                             </div>
                             <div class="form-group">
                                 <label for="sermon-youtube-url">YouTube 링크 (선택)</label>
@@ -217,7 +219,7 @@
 
                 <!-- YouTube Shorts Management Section -->
                 <section class="admin-section">
-                    <h2 class="section-title">더하는교회 숏츠 관리</h2>
+                    <h2 class="section-title">숏츠 관리</h2>
 
                     <!-- Create Shorts Form -->
                     <div class="admin-card">
