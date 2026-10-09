@@ -1948,6 +1948,136 @@ async def upload_image(
     return JSONResponse({"url": f"/uploads/{tenant_id}/{fname}"})
 
 
+# ─── Site design (교회별 디자인·테마 카탈로그) ────────────────────────────────
+
+SITE_IMAGE_EXTS = (".jpg", ".jpeg", ".png", ".gif", ".webp")
+
+
+def _site_redirect(**params) -> RedirectResponse:
+    return RedirectResponse(url="/admin/site?" + urlencode(params) if params else "/admin/site", status_code=303)
+
+
+def _save_site_image(tenant_id: int, image: UploadFile, prefix: str) -> Optional[str]:
+    if not image or not image.filename:
+        return None
+    ext = Path(image.filename).suffix.lower()
+    if ext not in SITE_IMAGE_EXTS:
+        raise HTTPException(400, "지원하지 않는 파일 형식입니다. (jpg, png, gif, webp)")
+    fname = f"{prefix}_{secrets.token_hex(6)}{ext}"
+    with (get_upload_dir(tenant_id) / fname).open("wb") as f:
+        shutil.copyfileobj(image.file, f)
+    return f"/uploads/{tenant_id}/{fname}"
+
+
+@app.get("/admin/site", response_class=HTMLResponse)
+async def site_design_page(request: Request, msg: str = "", error: str = "", user: dict = Depends(require_admin)):
+    tenant = request.state.tenant
+    cfg = site_config.load_active_config(tenant["id"])
+    return templates.TemplateResponse(request, "site_design.html", {
+        "user": user, "tenant": tenant, "cfg": cfg, "msg": msg, "error": error,
+        "catalog": site_config.THEME_PRESETS, "fonts": site_config.FONTS,
+        "hero_styles": site_config.HERO_STYLES, "section_labels": site_config.HOME_SECTIONS,
+        "versions": site_config.list_versions(tenant["id"]),
+        "schedule_text": "\n".join(f"{r['name']} | {r['time']}" for r in cfg["worship_schedule"]),
+    })
+
+
+@app.post("/admin/site/info")
+async def site_update_info(
+    request: Request, church_name: str = Form(...), pastor_name: str = Form(""),
+    phone: str = Form(""), address: str = Form(""), denomination: str = Form(""),
+    user: dict = Depends(require_admin),
+):
+    tenant_id = user["tenant_id"]
+    church_name = church_name.strip()[:60]
+    if not church_name:
+        return _site_redirect(error="교회 이름을 입력해 주세요.")
+    conn = get_conn()
+    try:
+        with conn.cursor() as cur:
+            cur.execute(
+                "UPDATE tenants SET church_name=%s, pastor_name=%s, phone=%s, address=%s WHERE id=%s",
+                (church_name, pastor_name.strip()[:40], phone.strip()[:40], address.strip()[:200], tenant_id),
+            )
+        conn.commit()
+    finally:
+        conn.close()
+    cfg = site_config.load_active_config(tenant_id)
+    if cfg["texts"]["denomination"] != denomination.strip():
+        cfg = site_config.normalize_config({"texts": {"denomination": denomination}}, base=cfg)
+        site_config.save_version(tenant_id, cfg, "manual", "소속 변경", created_by=user["username"])
+    return _site_redirect(msg="기본 정보를 저장했습니다.")
+
+
+@app.post("/admin/site/design")
+async def site_update_design(request: Request, user: dict = Depends(require_admin)):
+    tenant_id = user["tenant_id"]
+    form = await request.form()
+    cfg = site_config.load_active_config(tenant_id)
+    sections = sorted(
+        (int(form.get(f"order_{key}") or 99), key)
+        for key in site_config.HOME_SECTIONS if form.get(f"show_{key}")
+    )
+    schedule = []
+    for line in str(form.get("worship_schedule", "")).splitlines():
+        name, _, time = line.partition("|")
+        schedule.append({"name": name, "time": time})
+    raw = {
+        "theme": {
+            "preset": cfg["theme"]["preset"],
+            "primary": form.get("primary"), "accent": form.get("accent"),
+            "font": form.get("font"), "hero_style": form.get("hero_style"),
+        },
+        "texts": {k: str(form.get(k, "")) for k in site_config.TEXT_LIMITS if k not in ("denomination", "concept")},
+        "home_sections": [key for _, key in sections],
+        "worship_schedule": schedule,
+    }
+    cfg = site_config.normalize_config(raw, base=cfg)
+    site_config.save_version(tenant_id, cfg, "manual", "디자인 직접 수정", created_by=user["username"])
+    return _site_redirect(msg="디자인을 저장했습니다. 홈페이지에 바로 반영됩니다.")
+
+
+@app.post("/admin/site/catalog/apply")
+async def site_apply_catalog(preset: str = Form(...), user: dict = Depends(require_admin)):
+    if preset not in site_config.THEME_PRESETS:
+        return _site_redirect(error="알 수 없는 테마입니다.")
+    tenant_id = user["tenant_id"]
+    cfg = site_config.apply_catalog_theme(site_config.load_active_config(tenant_id), preset)
+    label = site_config.THEME_PRESETS[preset]["label"]
+    site_config.save_version(tenant_id, cfg, "catalog", f"테마 카탈로그: {label}", created_by=user["username"])
+    return _site_redirect(msg=f"'{label}' 테마를 적용했습니다.")
+
+
+@app.post("/admin/site/versions/{version_id}/activate")
+async def site_activate_version(version_id: int, user: dict = Depends(require_admin)):
+    if not site_config.activate_version(user["tenant_id"], version_id):
+        return _site_redirect(error="해당 디자인 버전을 찾을 수 없습니다.")
+    return _site_redirect(msg=f"디자인 #{version_id} 을(를) 적용했습니다.")
+
+
+@app.post("/admin/site/images")
+async def site_update_images(
+    logo: Optional[UploadFile] = File(None), about_image: Optional[UploadFile] = File(None),
+    remove_logo: str = Form(""), remove_about: List[str] = Form(default=[]),
+    user: dict = Depends(require_admin),
+):
+    tenant_id = user["tenant_id"]
+    cfg = site_config.load_active_config(tenant_id)
+    logo_path = "" if remove_logo else cfg["logo_path"]
+    new_logo = _save_site_image(tenant_id, logo, "logo")
+    if new_logo:
+        logo_path = new_logo
+    about_images = [p for p in cfg["about_images"] if p not in remove_about]
+    new_about = _save_site_image(tenant_id, about_image, "about")
+    if new_about:
+        if len(about_images) >= site_config.MAX_ABOUT_IMAGES:
+            return _site_redirect(error=f"교회소개 이미지는 최대 {site_config.MAX_ABOUT_IMAGES}장까지 올릴 수 있습니다.")
+        about_images.append(new_about)
+    cfg = site_config.normalize_config({"logo_path": logo_path, "about_images": about_images}, base=cfg)
+    site_config.save_version(tenant_id, cfg, "manual", "이미지 변경", created_by=user["username"])
+    return _site_redirect(msg="이미지를 저장했습니다.")
+
+
 # ─── Bulletin (주보) ─────────────────────────────────────────────────────────
 
 @app.get("/bulletin", response_class=HTMLResponse)

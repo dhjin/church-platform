@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="ko">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>사이트 디자인 - {{ tenant.church_name }}</title>
+    <link rel="stylesheet" href="/static/css/style.css?v=26">
+    <link rel="stylesheet" href="/static/css/admin.css?v=15">
+    <style>
+        .site-msg { padding: 12px 14px; border-radius: 8px; margin-bottom: 16px; font-size: .92rem; }
+        .site-msg.ok { background: #ecfdf5; color: #047857; }
+        .site-msg.err { background: #fef2f2; color: #b91c1c; }
+        .catalog-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 14px; }
+        .theme-card { border: 1px solid #e2e8f0; border-radius: 12px; overflow: hidden; background: #fff; display: flex; flex-direction: column; }
+        .theme-card.active { border: 2px solid #22c55e; }
+        .theme-swatch { height: 86px; display: flex; align-items: flex-end; padding: 10px 12px; color: #fff; font-weight: 700; }
+        .theme-swatch.light { color: #1f2937; }
+        .theme-body { padding: 12px; font-size: .85rem; color: #475569; line-height: 1.55; flex: 1; }
+        .theme-meta { font-size: .75rem; color: #94a3b8; margin-top: 6px; }
+        .theme-actions { display: flex; gap: 8px; padding: 0 12px 12px; }
+        .theme-actions a, .theme-actions button { flex: 1; text-align: center; padding: 7px 0; border-radius: 6px; font-size: .82rem; font-weight: 600; cursor: pointer; text-decoration: none; }
+        .theme-actions a { border: 1px solid #cbd5e1; color: #334155; }
+        .theme-actions button { border: none; background: #1e3a5f; color: #fff; width: 100%; }
+        .grid-2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px; }
+        .section-row { display: flex; align-items: center; gap: 10px; padding: 6px 0; }
+        .section-row input[type=number] { width: 64px; }
+        .color-row { display: flex; gap: 8px; align-items: center; }
+        .color-row input[type=color] { width: 48px; height: 36px; padding: 0; border: none; }
+        .thumbs { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 8px; }
+        .thumbs label { display: flex; flex-direction: column; align-items: center; font-size: .78rem; gap: 4px; }
+        .thumbs img { width: 96px; height: 72px; object-fit: cover; border-radius: 6px; border: 1px solid #e2e8f0; }
+        .version-table { width: 100%; border-collapse: collapse; font-size: .88rem; }
+        .version-table th, .version-table td { padding: 8px; border-bottom: 1px solid #e2e8f0; text-align: left; }
+        .badge-on { background: #22c55e; color: #fff; border-radius: 10px; padding: 2px 8px; font-size: .75rem; }
+        .hint { font-size: .8rem; color: #64748b; margin-top: 4px; }
+    </style>
+</head>
+
+<body>
+    <div class="admin-wrapper">
+        <header class="admin-header">
+            <div class="container">
+                <div class="admin-nav">
+                    <h1>🎨 사이트 디자인</h1>
+                    <div class="admin-user-info">
+                        <span>👤 {{ user.username }}</span>
+                        <a href="/" target="_blank" class="btn-home">홈페이지 보기</a>
+                        <a href="/admin" class="btn-home">관리자 홈</a>
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <div class="admin-container">
+            <div class="container">
+                {% if msg %}<div class="site-msg ok">{{ msg }}</div>{% endif %}
+                {% if error %}<div class="site-msg err">{{ error }}</div>{% endif %}
+
+
+                <section class="admin-section" id="catalog">
+                    <h2 class="section-title">테마 카탈로그</h2>
+                    <div class="admin-card">
+                        <p class="hint" style="margin-bottom:12px">미리보기로 우리 교회 내용이 들어간 모습을 확인한 뒤 적용하세요. 테마는 색·글꼴·첫 화면 스타일·홈 섹션 순서만 바꾸고, 교회 이름이나 문구는 그대로 둡니다.</p>
+                        <div class="catalog-grid">
+                            {% for key, item in catalog.items() %}
+                            <div class="theme-card {% if cfg.theme.preset == key %}active{% endif %}">
+                                <div class="theme-swatch {% if item.hero_style == 'light' %}light{% endif %}"
+                                    style="background: {% if item.hero_style == 'light' %}linear-gradient(180deg, {{ item.accent }}55, #fff){% elif item.hero_style == 'solid' %}{{ item.primary }}{% else %}linear-gradient(135deg, {{ item.primary }}, {{ item.accent }}){% endif %};">
+                                    {{ item.label }}
+                                </div>
+                                <div class="theme-body">
+                                    {{ item.description }}
+                                    <div class="theme-meta">글꼴: {{ fonts[item.font].label }} · 첫 화면: {{ hero_styles[item.hero_style] }}</div>
+                                    {% if cfg.theme.preset == key %}<div class="theme-meta" style="color:#16a34a;font-weight:600">현재 사용 중</div>{% endif %}
+                                </div>
+                                <div class="theme-actions">
+                                    <a href="/?preview_theme={{ key }}" target="_blank">미리보기</a>
+                                    <form method="POST" action="/admin/site/catalog/apply" style="flex:1;margin:0">
+                                        <input type="hidden" name="preset" value="{{ key }}">
+                                        <button type="submit">적용</button>
+                                    </form>
+                                </div>
+                            </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                </section>
+
+                <section class="admin-section" id="info">
+                    <h2 class="section-title">교회 기본 정보</h2>
+                    <div class="admin-card">
+                        <form method="POST" action="/admin/site/info">
+                            <div class="grid-2">
+                                <div class="form-group"><label>교회 이름</label><input type="text" name="church_name" value="{{ tenant.church_name }}" required maxlength="60"></div>
+                                <div class="form-group"><label>담임목사 (이름)</label><input type="text" name="pastor_name" value="{{ tenant.pastor_name or '' }}" maxlength="40"></div>
+                                <div class="form-group"><label>소속 교단</label><input type="text" name="denomination" value="{{ cfg.texts.denomination }}" maxlength="60" placeholder="예: 기독교한국침례회"></div>
+                                <div class="form-group"><label>전화번호</label><input type="text" name="phone" value="{{ tenant.phone }}" maxlength="40"></div>
+                            </div>
+                            <div class="form-group"><label>주소</label><input type="text" name="address" value="{{ tenant.address }}" maxlength="200" placeholder="지도에 표시될 도로명 주소"></div>
+                            <button type="submit" class="btn btn-primary">기본 정보 저장</button>
+                        </form>
+                    </div>
+                </section>
+
+                <section class="admin-section" id="design">
+                    <h2 class="section-title">세부 디자인</h2>
+                    <div class="admin-card">
+                        <form method="POST" action="/admin/site/design">
+                            <h3>색상 · 글꼴</h3>
+                            <div class="grid-2">
+                                <div class="form-group"><label>대표 색</label>
+                                    <div class="color-row"><input type="color" name="primary" value="{{ cfg.theme.primary }}"><span class="hint">메뉴, 첫 화면 배경</span></div></div>
+                                <div class="form-group"><label>강조 색</label>
+                                    <div class="color-row"><input type="color" name="accent" value="{{ cfg.theme.accent }}"><span class="hint">버튼, 포인트</span></div></div>
+                                <div class="form-group"><label>글꼴</label>
+                                    <select name="font">{% for key, f in fonts.items() %}<option value="{{ key }}" {% if cfg.theme.font == key %}selected{% endif %}>{{ f.label }}</option>{% endfor %}</select></div>
+                                <div class="form-group"><label>첫 화면 스타일</label>
+                                    <select name="hero_style">{% for key, label in hero_styles.items() %}<option value="{{ key }}" {% if cfg.theme.hero_style == key %}selected{% endif %}>{{ label }}</option>{% endfor %}</select></div>
+                            </div>
+
+                            <h3 style="margin-top:18px">첫 화면 문구</h3>
+                            <div class="form-group"><label>큰 제목</label><input type="text" name="hero_title" value="{{ cfg.texts.hero_title }}" maxlength="80"></div>
+                            <div class="form-group"><label>부제목</label><input type="text" name="hero_subtitle" value="{{ cfg.texts.hero_subtitle }}" maxlength="120"></div>
+                            <div class="form-group"><label>추가 안내 (선택)</label><input type="text" name="hero_info" value="{{ cfg.texts.hero_info }}" maxlength="200"></div>
+                            <div class="grid-2">
+                                <div class="form-group"><label>환영 인사 제목</label><input type="text" name="welcome_title" value="{{ cfg.texts.welcome_title }}" maxlength="40"></div>
+                                <div class="form-group"><label>교회소개 사명 제목</label><input type="text" name="mission_title" value="{{ cfg.texts.mission_title }}" maxlength="40"></div>
+                            </div>
+                            <div class="form-group"><label>하단 축복 문구</label><input type="text" name="footer_blessing" value="{{ cfg.texts.footer_blessing }}" maxlength="200"></div>
+
+                            <h3 style="margin-top:18px">홈 화면 구성</h3>
+                            <p class="hint">보여줄 섹션을 고르고 순서 번호를 매기세요. 첫 화면(큰 제목)은 항상 맨 위에 있습니다.</p>
+                            {% for key, label in section_labels.items() %}
+                            <div class="section-row">
+                                <input type="checkbox" name="show_{{ key }}" id="show_{{ key }}" {% if key in cfg.home_sections %}checked{% endif %}>
+                                <input type="number" name="order_{{ key }}" min="1" max="9" value="{{ (cfg.home_sections.index(key) + 1) if key in cfg.home_sections else loop.index + 4 }}">
+                                <label for="show_{{ key }}">{{ label }}</label>
+                            </div>
+                            {% endfor %}
+
+                            <h3 style="margin-top:18px">예배 시간</h3>
+                            <div class="form-group">
+                                <textarea name="worship_schedule" rows="6" placeholder="주일 예배 | 일요일 오전 11:00">{{ schedule_text }}</textarea>
+                                <p class="hint">한 줄에 하나씩 "예배 이름 | 시간" 형식으로 입력하세요. (최대 10줄)</p>
+                            </div>
+
+                            <button type="submit" class="btn btn-primary">디자인 저장</button>
+                        </form>
+                    </div>
+                </section>
+
+                <section class="admin-section" id="images">
+                    <h2 class="section-title">로고 · 교회소개 이미지</h2>
+                    <div class="admin-card">
+                        <form method="POST" action="/admin/site/images" enctype="multipart/form-data">
+                            <div class="grid-2">
+                                <div class="form-group">
+                                    <label>로고 (정사각형 권장)</label>
+                                    <input type="file" name="logo" accept="image/*">
+                                    {% if cfg.logo_path %}
+                                    <div class="thumbs"><label><img src="{{ cfg.logo_path }}" alt="로고"><span><input type="checkbox" name="remove_logo" value="1"> 삭제</span></label></div>
+                                    {% endif %}
+                                </div>
+                                <div class="form-group">
+                                    <label>교회소개 페이지 이미지 추가 (최대 4장)</label>
+                                    <input type="file" name="about_image" accept="image/*">
+                                    {% if cfg.about_images %}
+                                    <div class="thumbs">
+                                        {% for img in cfg.about_images %}
+                                        <label><img src="{{ img }}" alt=""><span><input type="checkbox" name="remove_about" value="{{ img }}"> 삭제</span></label>
+                                        {% endfor %}
+                                    </div>
+                                    {% endif %}
+                                </div>
+                            </div>
+                            <button type="submit" class="btn btn-primary">이미지 저장</button>
+                        </form>
+                    </div>
+                </section>
+
+                <section class="admin-section" id="versions">
+                    <h2 class="section-title">디자인 기록</h2>
+                    <div class="admin-card">
+                        {% if versions %}
+                        <table class="version-table">
+                            <tr><th>#</th><th>내용</th><th>작성</th><th>일시</th><th></th></tr>
+                            {% for v in versions %}
+                            <tr>
+                                <td>{{ v.id }}</td>
+                                <td>{{ v.note or v.source }} {% if v.is_active %}<span class="badge-on">사용 중</span>{% endif %}</td>
+                                <td>{{ v.created_by or '' }}</td>
+                                <td>{{ v.created_at.strftime('%Y-%m-%d %H:%M') if v.created_at else '' }}</td>
+                                <td style="white-space:nowrap">
+                                    {% if not v.is_active %}
+                                    <a href="/?preview={{ v.id }}" target="_blank">미리보기</a>
+                                    <form method="POST" action="/admin/site/versions/{{ v.id }}/activate" style="display:inline;margin-left:8px">
+                                        <button type="submit" class="btn btn-secondary" style="padding:4px 10px;font-size:.8rem">이 버전으로 되돌리기</button>
+                                    </form>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </table>
+                        {% else %}
+                        <p class="hint">아직 저장한 디자인이 없습니다. 기본 디자인을 사용 중입니다.</p>
+                        {% endif %}
+                    </div>
+                </section>
+            </div>
+        </div>
+    </div>
+</body>
+
+</html>
