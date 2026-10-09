@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="ko">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>구독 · 결제 관리 - {{ church_name }}</title>
+    <link rel="stylesheet" href="/static/css/style.css?v=26">
+    <link rel="stylesheet" href="/static/css/admin.css?v=15">
+    <style>
+        .billing-summary { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; margin-bottom: 16px; }
+        .billing-summary div { background: #f8fafc; border-radius: 8px; padding: 12px 14px; }
+        .billing-summary small { display: block; color: #64748b; font-size: .8rem; margin-bottom: 4px; }
+        .billing-summary strong { font-size: 1.05rem; color: #1e3a5f; }
+        .billing-msg { padding: 12px 14px; border-radius: 8px; margin-bottom: 16px; font-size: .92rem; }
+        .billing-msg.ok { background: #ecfdf5; color: #047857; }
+        .billing-msg.err { background: #fef2f2; color: #b91c1c; }
+        .billing-note { color: #64748b; font-size: .85rem; margin-top: 10px; line-height: 1.6; }
+        .billing-table { width: 100%; border-collapse: collapse; font-size: .9rem; }
+        .billing-table th, .billing-table td { padding: 8px; border-bottom: 1px solid #e2e8f0; text-align: left; }
+    </style>
+</head>
+
+<body>
+    <div class="admin-wrapper">
+        <header class="admin-header">
+            <div class="container">
+                <div class="admin-nav">
+                    <h1>💳 구독 · 결제 관리</h1>
+                    <div class="admin-user-info">
+                        <span>👤 {{ user.username }}</span>
+                        <a href="/admin" class="btn-home">관리자 홈</a>
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <div class="admin-container">
+            <div class="container">
+                {% if result == 'registered' %}
+                <div class="billing-msg ok">결제수단이 등록되었습니다. 매월 자동으로 결제됩니다.</div>
+                {% elif result == 'canceled' %}
+                <div class="billing-msg ok">자동결제를 해지했습니다. 이미 결제한 기간까지는 계속 이용할 수 있습니다.</div>
+                {% endif %}
+                {% if error %}
+                <div class="billing-msg err">{{ error }}</div>
+                {% endif %}
+
+                <section class="admin-section">
+                    <h2 class="section-title">{{ plan_name }}</h2>
+                    <div class="admin-card">
+                        <div class="billing-summary">
+                            <div><small>요금</small><strong>월 {{ "{:,}".format(sub.amount) }}원</strong></div>
+                            <div><small>상태</small><strong>{{ status_label }}</strong></div>
+                            <div><small>결제수단</small><strong>{{ sub.payment_method or '없음' }}</strong></div>
+                            {% if sub.status == 'canceled' %}
+                            <div><small>이용 가능 기한</small><strong>{{ sub.current_period_end.strftime('%Y-%m-%d') if sub.current_period_end else '-' }}</strong></div>
+                            {% elif sub.next_billing_at %}
+                            <div><small>다음 결제일</small><strong>{{ sub.next_billing_at.strftime('%Y-%m-%d') }}</strong></div>
+                            {% elif trial_ends_at and sub.status == 'incomplete' %}
+                            <div><small>무료체험 종료</small><strong>{{ trial_ends_at.strftime('%Y-%m-%d') }}</strong></div>
+                            {% endif %}
+                        </div>
+
+                        {% if providers %}
+                        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px">
+                            {% if 'toss' in providers %}
+                            <button type="button" class="btn btn-primary" id="register-card">
+                                {% if sub.billing_key %}카드로 결제수단 변경{% else %}카드 등록하고 구독 시작{% endif %}
+                            </button>
+                            {% endif %}
+                            {% if 'kakaopay' in providers %}
+                            <form method="POST" action="/admin/billing/kakaopay/start" style="display:inline"
+                                {% if sub.billing_key %}onsubmit="return confirm('카카오페이는 등록할 때 다음 이용 기간 요금({{ "{:,}".format(sub.amount) }}원)이 바로 결제됩니다. 계속할까요?')"{% endif %}>
+                                <button type="submit" class="btn" style="background:#fee500;color:#191919;font-weight:600">
+                                    {% if sub.billing_key %}카카오페이로 변경{% else %}카카오페이로 구독 시작{% endif %}
+                                </button>
+                            </form>
+                            {% endif %}
+                        </div>
+                        {% else %}
+                        <p class="billing-note">결제 설정이 아직 준비되지 않았습니다. 플랫폼 관리자에게 문의해주세요.</p>
+                        {% endif %}
+
+                        {% if sub.billing_key %}
+                        <form method="POST" action="/admin/billing/cancel" style="display:inline" onsubmit="return confirm('자동결제를 해지할까요? 이미 결제한 기간까지는 이용할 수 있습니다.')">
+                            <button type="submit" class="btn btn-danger">자동결제 해지</button>
+                        </form>
+                        {% endif %}
+
+                        <p class="billing-note">
+                            카드: 무료체험 중에 등록하면 체험이 끝나는 날 첫 결제가 이뤄지고, 이후 매월 같은 날짜에 자동 결제됩니다.<br>
+                            카카오페이: 등록할 때 첫 달 요금이 바로 결제되며, 이용 기간은 무료체험이 끝나는 날부터 시작합니다.<br>
+                            결제가 실패하면 며칠 간격으로 다시 시도하며, 결제수단을 바꾸면 밀린 금액을 바로 결제합니다.
+                        </p>
+                    </div>
+                </section>
+
+                <section class="admin-section">
+                    <h2 class="section-title">결제 내역</h2>
+                    <div class="admin-card">
+                        {% if payments %}
+                        <table class="billing-table">
+                            <thead><tr><th>결제일</th><th>이용 기간</th><th>금액</th><th>결과</th></tr></thead>
+                            <tbody>
+                                {% for p in payments %}
+                                <tr>
+                                    <td>{{ (p.approved_at or p.created_at).strftime('%Y-%m-%d') }}</td>
+                                    <td>{{ p.period_start.strftime('%Y-%m-%d') }} ~ {{ p.period_end.strftime('%Y-%m-%d') }}</td>
+                                    <td>{{ "{:,}".format(p.amount) }}원</td>
+                                    <td>
+                                        {% if p.status == 'done' %}결제 완료
+                                        {% elif p.status == 'unknown' %}확인 중
+                                        {% else %}실패{% if p.failure_message %} ({{ p.failure_message }}){% endif %}{% endif %}
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                        {% else %}
+                        <p class="billing-note">아직 결제 내역이 없습니다.</p>
+                        {% endif %}
+                    </div>
+                </section>
+            </div>
+        </div>
+    </div>
+
+    {% if 'toss' in providers %}
+    <script src="https://js.tosspayments.com/v2/standard"></script>
+    <script>
+        document.getElementById('register-card').addEventListener('click', async function () {
+            try {
+                const tossPayments = TossPayments({{ toss_client_key | tojson }});
+                const payment = tossPayments.payment({ customerKey: {{ sub.customer_key | tojson }} });
+                await payment.requestBillingAuth({
+                    method: 'CARD',
+                    successUrl: window.location.origin + '/admin/billing/success',
+                    failUrl: window.location.origin + '/admin/billing/fail',
+                    customerName: {{ church_name | tojson }},
+                });
+            } catch (e) {
+                alert(e.message || '결제창을 열지 못했습니다.');
+            }
+        });
+    </script>
+    {% endif %}
+</body>
+
+</html>

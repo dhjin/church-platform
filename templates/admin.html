@@ -20,6 +20,9 @@
                         {% if user.role == 'owner' %}
                         <a href="/planner/dashboard" style="color:#a78bfa;font-weight:600;font-size:.85rem;margin-right:8px">🙏 목양 플래너</a>
                         {% endif %}
+                        {% if user.role in ['owner', 'admin'] %}
+                        <a href="/admin/billing" style="color:#93c5fd;font-weight:600;font-size:.85rem;margin-right:8px">💳 구독·결제</a>
+                        {% endif %}
                         <span>👤 {{ user.username }}</span>
                         {% if user.role == 'owner' %}
                         <span style="background:#7c3aed;color:#fff;font-size:.72rem;padding:2px 8px;border-radius:10px;font-weight:600;">OWNER</span>
