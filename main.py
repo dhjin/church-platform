@@ -1970,11 +1970,37 @@ def _save_site_image(tenant_id: int, image: UploadFile, prefix: str) -> Optional
 
 
 @app.get("/admin/site", response_class=HTMLResponse)
-async def site_design_page(request: Request, msg: str = "", error: str = "", user: dict = Depends(require_admin)):
+async def site_design_page(request: Request, msg: str = "", error: str = "", ai: str = "",
+                           user: dict = Depends(require_admin)):
     tenant = request.state.tenant
     cfg = site_config.load_active_config(tenant["id"])
+    proposals = []
+    for vid in ai.split(",")[:3]:
+        if vid.isdigit():
+            draft = site_config.load_version(tenant["id"], int(vid))
+            if draft is not None:
+                proposals.append({"id": int(vid), "cfg": draft})
+    conn = get_conn()
+    try:
+        plan = billing.current_plan(conn, tenant["id"])
+        setup_paid = any(p["kind"] == "setup" and p["status"] == "done"
+                         for p in billing.list_one_time_payments(conn, tenant["id"]))
+        with conn.cursor() as cur:
+            cur.execute(
+                "SELECT id, content, status, admin_note, created_at FROM custom_requests WHERE tenant_id=%s ORDER BY id DESC LIMIT 20",
+                (tenant["id"],),
+            )
+            custom_requests = [{"id": r[0], "content": r[1], "status": r[2], "admin_note": r[3], "created_at": r[4]}
+                               for r in cur.fetchall()]
+    finally:
+        conn.close()
+    plan_info = billing_config.plan_info(plan)
     return templates.TemplateResponse(request, "site_design.html", {
         "user": user, "tenant": tenant, "cfg": cfg, "msg": msg, "error": error,
+        "proposals": proposals, "ai_enabled": _claude_client is not None,
+        "ai_used": _ai_usage_this_month(tenant["id"]), "ai_limit": plan_info["ai_designs_per_month"],
+        "plan_label": plan_info["label"], "interview_fields": AI_INTERVIEW_FIELDS,
+        "can_custom": plan_info["custom_requests"] or setup_paid, "custom_requests": custom_requests,
         "catalog": site_config.THEME_PRESETS, "fonts": site_config.FONTS,
         "hero_styles": site_config.HERO_STYLES, "section_labels": site_config.HOME_SECTIONS,
         "versions": site_config.list_versions(tenant["id"]),
@@ -2076,6 +2102,246 @@ async def site_update_images(
     cfg = site_config.normalize_config({"logo_path": logo_path, "about_images": about_images}, base=cfg)
     site_config.save_version(tenant_id, cfg, "manual", "이미지 변경", created_by=user["username"])
     return _site_redirect(msg="이미지를 저장했습니다.")
+
+
+CUSTOM_REQUEST_STATUSES = {"open": "접수", "in_progress": "제작 중", "done": "완료"}
+
+
+@app.post("/admin/site/custom-request")
+async def site_custom_request(content: str = Form(...), user: dict = Depends(require_admin)):
+    tenant_id = user["tenant_id"]
+    content = content.strip()[:3000]
+    if not content:
+        return _site_redirect(error="요청 내용을 입력해 주세요.")
+    conn = get_conn()
+    try:
+        plan = billing.current_plan(conn, tenant_id)
+        setup_paid = any(p["kind"] == "setup" and p["status"] == "done" for p in billing.list_one_time_payments(conn, tenant_id))
+        if not (billing_config.plan_info(plan)["custom_requests"] or setup_paid):
+            return _site_redirect(error="맞춤 제작 요청은 프리미엄 요금제 또는 AI 맞춤 제작 셋업 신청 후 이용할 수 있습니다.")
+        with conn.cursor() as cur:
+            cur.execute(
+                "INSERT INTO custom_requests (tenant_id, requested_by, content) VALUES (%s, %s, %s)",
+                (tenant_id, user["username"], content),
+            )
+        conn.commit()
+    finally:
+        conn.close()
+    return _site_redirect(msg="맞춤 제작 요청을 접수했습니다. 운영자가 확인 후 진행 상황을 이곳에 남깁니다.")
+
+
+@app.get("/api/admin/custom-requests")
+async def list_custom_requests(request: Request, status: str = ""):
+    require_platform_admin(request)
+    conn = get_conn()
+    try:
+        with conn.cursor() as cur:
+            cur.execute(
+                """SELECT r.id, t.slug, t.church_name, r.requested_by, r.content, r.status, r.admin_note, r.created_at
+                   FROM custom_requests r JOIN tenants t ON t.id = r.tenant_id
+                   WHERE (%s = '' OR r.status = %s) ORDER BY r.id DESC""",
+                (status, status),
+            )
+            rows = cur.fetchall()
+    finally:
+        conn.close()
+    keys = ["id", "slug", "church_name", "requested_by", "content", "status", "admin_note", "created_at"]
+    return {"requests": [dict(zip(keys, r)) for r in rows]}
+
+
+class CustomRequestUpdate(BaseModel):
+    status: str
+    admin_note: str = ""
+
+
+@app.post("/api/admin/custom-requests/{request_id}")
+async def update_custom_request(request: Request, request_id: int, body: CustomRequestUpdate):
+    require_platform_admin(request)
+    if body.status not in CUSTOM_REQUEST_STATUSES:
+        raise HTTPException(400, "status 는 open / in_progress / done 중 하나입니다.")
+    conn = get_conn()
+    try:
+        with conn.cursor() as cur:
+            cur.execute(
+                "UPDATE custom_requests SET status=%s, admin_note=%s, updated_at=NOW() WHERE id=%s",
+                (body.status, body.admin_note[:2000], request_id),
+            )
+            updated = cur.rowcount
+        conn.commit()
+    finally:
+        conn.close()
+    if not updated:
+        raise HTTPException(404)
+    return {"ok": True}
+
+
+# ─── AI 맞춤 디자인 (Claude 요구사항 인터뷰 → 디자인안) ──────────────────────
+
+AI_DESIGN_SYSTEM = (
+    "당신은 한국 교회 홈페이지를 맞춤 디자인하는 디자이너입니다. 교회가 답한 요구사항을 읽고 "
+    "그 교회의 컨셉에 맞는 홈페이지 디자인안을 만듭니다. 디자인안은 정해진 테마 카탈로그·글꼴·홈 섹션 부품을 "
+    "조합한 설정이며 HTML은 만들지 않습니다.\n"
+    "- theme.preset 은 가장 가까운 카탈로그 테마, primary/accent 는 컨셉에 맞게 조정한 #rrggbb 색입니다. "
+    "primary 는 흰 글씨가 잘 보이는 진한 색이어야 합니다.\n"
+    "- texts 는 한국어로, 성도와 처음 오는 분이 읽기 쉬운 따뜻한 문장으로 씁니다. 글자 수 제한: "
+    + ", ".join(f"{k} {v}자" for k, v in site_config.TEXT_LIMITS.items()) + ".\n"
+    "- denomination 은 요구사항에 나온 소속 교단을 그대로 쓰고, 없으면 빈 문자열로 둡니다.\n"
+    "- worship_schedule 은 요구사항에 나온 예배만 넣고 시간을 지어내지 마세요. 정보가 없으면 현재 설정을 유지합니다.\n"
+    "- home_sections 는 교회가 강조하고 싶은 사역이 앞에 오도록 순서를 정합니다. "
+    "섹션: " + ", ".join(f"{k}({v})" for k, v in site_config.HOME_SECTIONS.items()) + ".\n"
+    "- concept 에는 이 안의 컨셉과 선택 이유를 2~3문장으로 씁니다.\n"
+    "테마 카탈로그: " + "; ".join(f"{k}: {v['label']} - {v['description']}" for k, v in site_config.THEME_PRESETS.items())
+    + "\n글꼴: " + ", ".join(f"{k}({v['label']})" for k, v in site_config.FONTS.items())
+    + "\n첫 화면 스타일: " + ", ".join(f"{k}({v})" for k, v in site_config.HERO_STYLES.items())
+)
+
+AI_PROPOSALS_SCHEMA = {
+    "type": "object",
+    "properties": {"proposals": {"type": "array", "items": site_config.AI_CONFIG_SCHEMA}},
+    "required": ["proposals"],
+    "additionalProperties": False,
+}
+
+AI_INTERVIEW_FIELDS = {
+    "mood": "교회 분위기와 컨셉",
+    "audience": "주요 성도층·대상",
+    "ministries": "강조하고 싶은 사역",
+    "colors": "원하는 색감·느낌",
+    "worship": "예배 시간",
+    "extra": "기타 요청",
+}
+
+
+def _ai_design_limit(tenant_id: int) -> int:
+    conn = get_conn()
+    try:
+        plan = billing.current_plan(conn, tenant_id)
+    finally:
+        conn.close()
+    return billing_config.PLANS[plan]["ai_designs_per_month"]
+
+
+def _ai_usage_this_month(tenant_id: int) -> int:
+    conn = get_conn()
+    try:
+        with conn.cursor() as cur:
+            cur.execute(
+                "SELECT COUNT(*) FROM ai_usage WHERE tenant_id=%s AND kind='site_design' "
+                "AND created_at >= date_trunc('month', NOW())",
+                (tenant_id,),
+            )
+            return cur.fetchone()[0]
+    finally:
+        conn.close()
+
+
+def _record_ai_usage(tenant_id: int, response) -> None:
+    usage = getattr(response, "usage", None)
+    conn = get_conn()
+    try:
+        with conn.cursor() as cur:
+            cur.execute(
+                "INSERT INTO ai_usage (tenant_id, kind, input_tokens, output_tokens) VALUES (%s, 'site_design', %s, %s)",
+                (tenant_id, getattr(usage, "input_tokens", 0) or 0, getattr(usage, "output_tokens", 0) or 0),
+            )
+        conn.commit()
+    finally:
+        conn.close()
+
+
+async def _ask_claude_for_designs(prompt: str) -> tuple:
+    if _claude_client is None:
+        raise HTTPException(503, "AI 기능이 설정되지 않았습니다.")
+    try:
+        response = await _claude_client.beta.messages.create(
+            model=CLAUDE_MODEL,
+            max_tokens=16000,
+            system=AI_DESIGN_SYSTEM,
+            messages=[{"role": "user", "content": prompt}],
+            output_config={"effort": "medium", "format": {"type": "json_schema", "schema": AI_PROPOSALS_SCHEMA}},
+            betas=["server-side-fallback-2026-07-01"],
+            fallbacks="default",
+        )
+    except anthropic.APIError:
+        raise HTTPException(502, "AI 디자인안 생성에 실패했습니다. 잠시 후 다시 시도해 주세요.")
+    if response.stop_reason != "end_turn":
+        raise HTTPException(502, "AI 디자인안을 만들지 못했습니다. 요구사항을 바꿔 다시 시도해 주세요.")
+    text = next((b.text for b in response.content if b.type == "text"), "")
+    try:
+        proposals = _json.loads(text)["proposals"]
+    except (ValueError, KeyError, TypeError):
+        raise HTTPException(502, "AI 응답을 읽지 못했습니다.")
+    return proposals, response
+
+
+def _church_facts(tenant: dict, cfg: dict) -> str:
+    return _json.dumps({
+        "church_name": tenant["church_name"], "pastor_name": tenant.get("pastor_name") or "",
+        "address": tenant.get("address", ""),
+        "current_config": {k: cfg[k] for k in ("theme", "texts", "home_sections", "worship_schedule")},
+    }, ensure_ascii=False)
+
+
+async def _generate_ai_designs(request: Request, user: dict, prompt: str, base_cfg: dict, label: str) -> list:
+    tenant_id = user["tenant_id"]
+    limit = _ai_design_limit(tenant_id)
+    if _ai_usage_this_month(tenant_id) >= limit:
+        raise HTTPException(402, "이번 달 AI 디자인 횟수를 모두 사용했습니다. 요금제를 올리면 더 만들 수 있습니다.")
+    proposals, response = await _ask_claude_for_designs(prompt)
+    _record_ai_usage(tenant_id, response)
+    ids = []
+    for proposal in proposals[:3]:
+        cfg = site_config.normalize_config(proposal, base=base_cfg)
+        note = f"AI {label}: " + (cfg["texts"]["concept"][:60] or site_config.THEME_PRESETS[cfg["theme"]["preset"]]["label"])
+        ids.append(site_config.save_version(tenant_id, cfg, "ai", note, activate=False, created_by=user["username"]))
+    if not ids:
+        raise HTTPException(502, "AI 디자인안을 만들지 못했습니다.")
+    return ids
+
+
+def _ai_error_redirect(exc: HTTPException) -> RedirectResponse:
+    return _site_redirect(error=exc.detail)
+
+
+@app.post("/admin/site/ai/generate")
+async def site_ai_generate(request: Request, user: dict = Depends(require_admin)):
+    form = await request.form()
+    answers = {label: str(form.get(key, "")).strip()[:800] for key, label in AI_INTERVIEW_FIELDS.items()}
+    if not any(answers.values()):
+        return _site_redirect(error="요구사항을 하나 이상 입력해 주세요.")
+    tenant = request.state.tenant
+    cfg = site_config.load_active_config(tenant["id"])
+    prompt = (
+        "교회 정보와 현재 설정:\n" + _church_facts(tenant, cfg)
+        + "\n\n요구사항 인터뷰 답변:\n" + "\n".join(f"- {k}: {v or '(답변 없음)'}" for k, v in answers.items())
+        + "\n\n서로 다른 컨셉의 디자인안 2개를 만들어 주세요."
+    )
+    try:
+        ids = await _generate_ai_designs(request, user, prompt, cfg, "디자인안")
+    except HTTPException as exc:
+        return _ai_error_redirect(exc)
+    return RedirectResponse("/admin/site?" + urlencode({"ai": ",".join(map(str, ids))}) + "#ai", status_code=303)
+
+
+@app.post("/admin/site/ai/refine/{version_id}")
+async def site_ai_refine(request: Request, version_id: int, feedback: str = Form(...), user: dict = Depends(require_admin)):
+    tenant = request.state.tenant
+    draft = site_config.load_version(tenant["id"], version_id)
+    if draft is None:
+        return _site_redirect(error="해당 디자인안을 찾을 수 없습니다.")
+    feedback = feedback.strip()[:800]
+    if not feedback:
+        return _site_redirect(error="수정 요청을 입력해 주세요.")
+    prompt = (
+        "교회 정보와 수정할 디자인안:\n" + _church_facts(tenant, draft)
+        + "\n\n교회의 수정 요청: " + feedback
+        + "\n\n요청을 반영해 고친 디자인안 1개를 만들어 주세요. 요청과 관계없는 부분은 그대로 유지하세요."
+    )
+    try:
+        ids = await _generate_ai_designs(request, user, prompt, draft, "수정안")
+    except HTTPException as exc:
+        return _ai_error_redirect(exc)
+    return RedirectResponse("/admin/site?" + urlencode({"ai": ",".join(map(str, ids[:1]))}) + "#ai", status_code=303)
 
 
 # ─── Bulletin (주보) ─────────────────────────────────────────────────────────
@@ -2312,6 +2578,7 @@ async def billing_page(request: Request, result: str = "", error: str = "", user
     try:
         sub = billing.ensure_subscription(conn, tenant_id)
         payments = billing.list_payments(conn, tenant_id)
+        one_time = billing.list_one_time_payments(conn, tenant_id)
         cur = conn.cursor()
         cur.execute("SELECT church_name, trial_ends_at FROM tenants WHERE id=%s", (tenant_id,))
         church_name, trial_ends_at = cur.fetchone()
@@ -2321,7 +2588,12 @@ async def billing_page(request: Request, result: str = "", error: str = "", user
     return templates.TemplateResponse(request, "billing.html", {
         "user": user, "sub": sub, "payments": payments, "church_name": church_name,
         "trial_ends_at": trial_ends_at, "status_label": SUBSCRIPTION_STATUS_LABELS.get(sub["status"], sub["status"]),
-        "plan_name": billing_config.PLAN_NAME, "plan_amount": billing_config.PLAN_AMOUNT,
+        "plan_name": billing_config.plan_info(sub["plan"])["order_name"],
+        "plan_amount": billing_config.plan_info(sub["plan"])["amount"],
+        "plans": billing_config.PLANS, "plan_order": billing_config.PLAN_ORDER,
+        "current_plan": sub["plan"] if sub["plan"] in billing_config.PLANS else billing_config.PLAN_CODE,
+        "one_time": one_time, "setup_fee": billing_config.SETUP_FEE_AMOUNT,
+        "setup_paid": any(p["kind"] == "setup" and p["status"] in ("done", "unknown") for p in one_time),
         "toss_client_key": billing_config.TOSS_CLIENT_KEY, "result": result, "error": error,
         "providers": [p.name for p in configured_providers()],
     })
@@ -2419,6 +2691,32 @@ async def billing_cancel(user: dict = Depends(require_admin)):
     finally:
         conn.close()
     return _billing_redirect(result="canceled")
+
+
+@app.post("/admin/billing/plan")
+async def billing_change_plan(plan: str = Form(...), user: dict = Depends(require_admin)):
+    if plan not in billing_config.PLANS:
+        return _billing_redirect(error="알 수 없는 요금제입니다.")
+    conn = get_conn()
+    try:
+        sub = billing.change_plan(conn, user["tenant_id"], plan)
+    finally:
+        conn.close()
+    return _billing_redirect(result="plan_scheduled" if sub["scheduled_plan"] else "plan_changed")
+
+
+@app.post("/admin/billing/setup-fee")
+async def billing_setup_fee(user: dict = Depends(require_admin)):
+    conn = get_conn()
+    try:
+        payment = billing.charge_setup_fee(conn, user["tenant_id"])
+    except BillingProviderError as e:
+        return _billing_redirect(error=e.message)
+    finally:
+        conn.close()
+    if payment["status"] == "failed":
+        return _billing_redirect(error=f"셋업비 결제에 실패했습니다: {payment['failure_message'] or payment['failure_code']}")
+    return _billing_redirect(result="setup_paid" if payment["status"] == "done" else "setup_unknown")
 
 
 @app.get("/api/admin/billing/subscriptions")

@@ -58,6 +58,56 @@
                 {% if error %}<div class="site-msg err">{{ error }}</div>{% endif %}
 
 
+                <section class="admin-section" id="ai">
+                    <h2 class="section-title">✨ AI 맞춤 디자인</h2>
+                    <div class="admin-card">
+                        <p class="hint" style="margin-bottom:12px">우리 교회에 대해 알려 주시면 Claude가 컨셉에 맞는 디자인안 2개를 만들어 드립니다. 미리보기로 확인하고, 마음에 드는 안을 적용하거나 말로 수정을 요청하세요.
+                            <br>{{ plan_label }} 요금제: 이번 달 {{ ai_used }} / {{ ai_limit }}회 사용{% if ai_used >= ai_limit %} · <a href="/admin/billing#plans">요금제 올리기</a>{% endif %}</p>
+
+                        {% if proposals %}
+                        <div class="catalog-grid" style="margin-bottom:18px">
+                            {% for p in proposals %}{% set th = p.cfg.theme %}
+                            <div class="theme-card">
+                                <div class="theme-swatch {% if th.hero_style == 'light' %}light{% endif %}"
+                                    style="background: {% if th.hero_style == 'light' %}linear-gradient(180deg, {{ th.accent }}55, #fff){% elif th.hero_style == 'solid' %}{{ th.primary }}{% else %}linear-gradient(135deg, {{ th.primary }}, {{ th.accent }}){% endif %};">
+                                    디자인안 #{{ p.id }}
+                                </div>
+                                <div class="theme-body">
+                                    <strong>{{ p.cfg.texts.hero_title }}</strong><br>
+                                    {{ p.cfg.texts.concept }}
+                                    <div class="theme-meta">글꼴: {{ fonts[th.font].label }} · 섹션: {% for sec in p.cfg.home_sections %}{{ section_labels[sec] }}{% if not loop.last %} → {% endif %}{% endfor %}</div>
+                                </div>
+                                <div class="theme-actions">
+                                    <a href="/?preview={{ p.id }}" target="_blank">미리보기</a>
+                                    <form method="POST" action="/admin/site/versions/{{ p.id }}/activate" style="flex:1;margin:0">
+                                        <button type="submit">적용</button>
+                                    </form>
+                                </div>
+                                <form method="POST" action="/admin/site/ai/refine/{{ p.id }}" style="padding:0 12px 12px;display:flex;gap:6px">
+                                    <input type="text" name="feedback" placeholder="예: 더 밝게, 청년 사역 강조" style="flex:1;font-size:.82rem" required maxlength="800">
+                                    <button type="submit" class="btn btn-secondary" style="padding:4px 10px;font-size:.8rem" {% if not ai_enabled or ai_used >= ai_limit %}disabled{% endif %}>수정 요청</button>
+                                </form>
+                            </div>
+                            {% endfor %}
+                        </div>
+                        {% endif %}
+
+                        {% if ai_enabled %}
+                        <form method="POST" action="/admin/site/ai/generate" onsubmit="this.querySelector('button').disabled=true;this.querySelector('button').textContent='디자인안을 만드는 중... (1분 정도 걸립니다)'">
+                            <div class="grid-2">
+                                {% for key, label in interview_fields.items() %}
+                                <div class="form-group"><label>{{ label }}</label>
+                                    <textarea name="{{ key }}" rows="2" maxlength="800" placeholder="{% if key == 'mood' %}예: 말씀 중심의 따뜻한 가족 같은 교회{% elif key == 'audience' %}예: 30~40대 젊은 가정, 주일학교 아이들{% elif key == 'ministries' %}예: 다음세대, 지역 섬김, 영상 설교{% elif key == 'colors' %}예: 밝고 따뜻한 느낌, 초록색 좋아함{% elif key == 'worship' %}예: 주일 1부 9시, 2부 11시, 수요 7시 30분{% else %}예: 소속 교단, 꼭 넣고 싶은 문구{% endif %}"></textarea></div>
+                                {% endfor %}
+                            </div>
+                            <button type="submit" class="btn btn-primary" {% if ai_used >= ai_limit %}disabled{% endif %}>AI 디자인안 만들기</button>
+                        </form>
+                        {% else %}
+                        <p class="hint">AI 기능이 아직 설정되지 않았습니다. 플랫폼 관리자에게 문의해 주세요.</p>
+                        {% endif %}
+                    </div>
+                </section>
+
                 <section class="admin-section" id="catalog">
                     <h2 class="section-title">테마 카탈로그</h2>
                     <div class="admin-card">
@@ -176,6 +226,35 @@
                             </div>
                             <button type="submit" class="btn btn-primary">이미지 저장</button>
                         </form>
+                    </div>
+                </section>
+
+                <section class="admin-section" id="custom">
+                    <h2 class="section-title">맞춤 제작 요청</h2>
+                    <div class="admin-card">
+                        {% if can_custom %}
+                        <form method="POST" action="/admin/site/custom-request">
+                            <div class="form-group">
+                                <textarea name="content" rows="4" maxlength="3000" required placeholder="카탈로그나 AI 디자인으로 해결되지 않는 요청을 남겨 주세요. 예: 첫 화면에 교회 건물 사진 슬라이드, 새가족 등록 안내 섹션 추가"></textarea>
+                            </div>
+                            <button type="submit" class="btn btn-primary">요청 보내기</button>
+                        </form>
+                        {% else %}
+                        <p class="hint">전문가가 직접 검수하고 새 화면 부품까지 만들어 드리는 맞춤 제작은 <a href="/admin/billing#plans">프리미엄 요금제</a> 또는 <a href="/admin/billing#setup">AI 맞춤 제작 셋업</a> 신청 후 이용할 수 있습니다.</p>
+                        {% endif %}
+                        {% if custom_requests %}
+                        <table class="version-table" style="margin-top:12px">
+                            <tr><th>일시</th><th>요청</th><th>상태</th><th>운영자 메모</th></tr>
+                            {% for r in custom_requests %}
+                            <tr>
+                                <td>{{ r.created_at.strftime('%Y-%m-%d') if r.created_at else '' }}</td>
+                                <td style="white-space:pre-wrap">{{ r.content }}</td>
+                                <td>{{ {'open': '접수', 'in_progress': '제작 중', 'done': '완료'}.get(r.status, r.status) }}</td>
+                                <td style="white-space:pre-wrap">{{ r.admin_note }}</td>
+                            </tr>
+                            {% endfor %}
+                        </table>
+                        {% endif %}
                     </div>
                 </section>
 
