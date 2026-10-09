@@ -223,3 +223,50 @@ CREATE TABLE IF NOT EXISTS donation_receipts (
 CREATE INDEX IF NOT EXISTS idx_congregation_tenant ON congregation_members(tenant_id);
 CREATE INDEX IF NOT EXISTS idx_counseling_member ON counseling_logs(member_id);
 CREATE INDEX IF NOT EXISTS idx_donations_tenant_year ON donation_receipts(tenant_id, year);
+
+-- Billing: 교회별 정기 구독(자동결제)
+CREATE TABLE IF NOT EXISTS subscriptions (
+    id SERIAL PRIMARY KEY,
+    tenant_id INTEGER NOT NULL UNIQUE REFERENCES tenants(id) ON DELETE CASCADE,
+    provider TEXT NOT NULL DEFAULT 'toss',
+    plan TEXT NOT NULL DEFAULT 'standard',
+    amount INTEGER NOT NULL,
+    -- incomplete: 결제수단 미등록 / trialing: 등록됨, 무료체험 중 / active: 정상
+    -- past_due: 결제 실패 후 재시도 중 / unpaid: 재시도 모두 실패 / canceled: 해지
+    status TEXT NOT NULL DEFAULT 'incomplete',
+    customer_key TEXT UNIQUE NOT NULL,
+    billing_key TEXT,
+    payment_method TEXT DEFAULT '',
+    customer_email TEXT DEFAULT '',
+    customer_name TEXT DEFAULT '',
+    anchor_day INTEGER,
+    current_period_start TIMESTAMP,
+    current_period_end TIMESTAMP,
+    next_billing_at TIMESTAMP,
+    failed_attempts INTEGER NOT NULL DEFAULT 0,
+    canceled_at TIMESTAMP,
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS subscription_payments (
+    id SERIAL PRIMARY KEY,
+    tenant_id INTEGER NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+    subscription_id INTEGER NOT NULL REFERENCES subscriptions(id) ON DELETE CASCADE,
+    provider TEXT NOT NULL,
+    order_id TEXT UNIQUE NOT NULL,
+    amount INTEGER NOT NULL,
+    -- done / failed / unknown(네트워크 오류 등으로 결과 미확인, 같은 order_id 로 재시도)
+    status TEXT NOT NULL,
+    period_start TIMESTAMP NOT NULL,
+    period_end TIMESTAMP NOT NULL,
+    payment_key TEXT,
+    failure_code TEXT,
+    failure_message TEXT,
+    approved_at TIMESTAMP,
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_subscriptions_next_billing ON subscriptions(next_billing_at) WHERE billing_key IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_subscription_payments_tenant ON subscription_payments(tenant_id, created_at DESC);

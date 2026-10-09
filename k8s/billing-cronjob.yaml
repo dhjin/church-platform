@@ -1,0 +1,39 @@
+# 정기 구독 청구 배치: 매일 오전 10시(KST)에 결제일이 지난 구독을 결제한다.
+# 재시도·이중결제 방지 로직은 billing/service.py 의 run_due() 참고.
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: church-platform-billing
+  namespace: church-platform
+spec:
+  schedule: "0 10 * * *"
+  timeZone: "Asia/Seoul"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 5
+  jobTemplate:
+    spec:
+      backoffLimit: 0
+      template:
+        spec:
+          restartPolicy: Never
+          containers:
+          - name: billing
+            image: 192.168.219.101:30500/church-platform:latest
+            imagePullPolicy: Always
+            command: ["python", "-m", "billing.run_due"]
+            env:
+            - name: DATABASE_URL
+              value: "postgresql://church_platform:ChurchPlatform2026!@church-platform-postgres:5432/church_platform"
+            - name: TOSS_SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: church-platform-secret
+                  key: TOSS_SECRET_KEY
+            resources:
+              requests:
+                cpu: "50m"
+                memory: "64Mi"
+              limits:
+                cpu: "200m"
+                memory: "256Mi"

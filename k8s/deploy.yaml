@@ -154,6 +154,19 @@ spec:
               optional: true
         - name: CONTACT_EMAIL
           value: "contact@thechurch-plus.org"
+        # 토스페이먼츠 자동결제(빌링). 테스트 키(test_ck_/test_sk_)로 먼저 검증 후 라이브 키로 교체
+        - name: TOSS_CLIENT_KEY
+          valueFrom:
+            secretKeyRef:
+              name: church-platform-secret
+              key: TOSS_CLIENT_KEY
+              optional: true
+        - name: TOSS_SECRET_KEY
+          valueFrom:
+            secretKeyRef:
+              name: church-platform-secret
+              key: TOSS_SECRET_KEY
+              optional: true
         volumeMounts:
         - name: uploads
           mountPath: /app/uploads
