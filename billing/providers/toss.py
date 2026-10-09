@@ -17,6 +17,10 @@ from billing.providers.base import BillingMethod, BillingProvider, BillingProvid
 
 class TossBillingProvider(BillingProvider):
     name = "toss"
+    label = "카드 (토스페이먼츠)"
+
+    def is_configured(self) -> bool:
+        return bool(self.secret_key and config.TOSS_CLIENT_KEY)
 
     def __init__(
         self,

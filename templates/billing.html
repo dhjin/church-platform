@@ -38,7 +38,7 @@
         <div class="admin-container">
             <div class="container">
                 {% if result == 'registered' %}
-                <div class="billing-msg ok">카드가 등록되었습니다. 매월 자동으로 결제됩니다.</div>
+                <div class="billing-msg ok">결제수단이 등록되었습니다. 매월 자동으로 결제됩니다.</div>
                 {% elif result == 'canceled' %}
                 <div class="billing-msg ok">자동결제를 해지했습니다. 이미 결제한 기간까지는 계속 이용할 수 있습니다.</div>
                 {% endif %}
@@ -62,12 +62,24 @@
                             {% endif %}
                         </div>
 
-                        {% if toss_client_key %}
-                        <button type="button" class="btn btn-primary" id="register-card">
-                            {% if sub.billing_key %}결제 카드 변경{% else %}카드 등록하고 구독 시작{% endif %}
-                        </button>
+                        {% if providers %}
+                        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px">
+                            {% if 'toss' in providers %}
+                            <button type="button" class="btn btn-primary" id="register-card">
+                                {% if sub.billing_key %}카드로 결제수단 변경{% else %}카드 등록하고 구독 시작{% endif %}
+                            </button>
+                            {% endif %}
+                            {% if 'kakaopay' in providers %}
+                            <form method="POST" action="/admin/billing/kakaopay/start" style="display:inline"
+                                {% if sub.billing_key %}onsubmit="return confirm('카카오페이는 등록할 때 다음 이용 기간 요금({{ "{:,}".format(sub.amount) }}원)이 바로 결제됩니다. 계속할까요?')"{% endif %}>
+                                <button type="submit" class="btn" style="background:#fee500;color:#191919;font-weight:600">
+                                    {% if sub.billing_key %}카카오페이로 변경{% else %}카카오페이로 구독 시작{% endif %}
+                                </button>
+                            </form>
+                            {% endif %}
+                        </div>
                         {% else %}
-                        <p class="billing-note">결제 설정(TOSS_CLIENT_KEY)이 아직 준비되지 않았습니다. 플랫폼 관리자에게 문의해주세요.</p>
+                        <p class="billing-note">결제 설정이 아직 준비되지 않았습니다. 플랫폼 관리자에게 문의해주세요.</p>
                         {% endif %}
 
                         {% if sub.billing_key %}
@@ -77,8 +89,9 @@
                         {% endif %}
 
                         <p class="billing-note">
-                            무료체험 중에 카드를 등록하면 체험이 끝나는 날 첫 결제가 이뤄지고, 이후 매월 같은 날짜에 자동 결제됩니다.<br>
-                            결제가 실패하면 며칠 간격으로 다시 시도하며, 카드를 바꾸면 밀린 금액을 바로 결제합니다.
+                            카드: 무료체험 중에 등록하면 체험이 끝나는 날 첫 결제가 이뤄지고, 이후 매월 같은 날짜에 자동 결제됩니다.<br>
+                            카카오페이: 등록할 때 첫 달 요금이 바로 결제되며, 이용 기간은 무료체험이 끝나는 날부터 시작합니다.<br>
+                            결제가 실패하면 며칠 간격으로 다시 시도하며, 결제수단을 바꾸면 밀린 금액을 바로 결제합니다.
                         </p>
                     </div>
                 </section>
@@ -113,7 +126,7 @@
         </div>
     </div>
 
-    {% if toss_client_key %}
+    {% if 'toss' in providers %}
     <script src="https://js.tosspayments.com/v2/standard"></script>
     <script>
         document.getElementById('register-card').addEventListener('click', async function () {

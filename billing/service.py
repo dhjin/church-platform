@@ -2,8 +2,9 @@
 
 흐름
 1. 관리자가 구독 페이지를 열면 ensure_subscription() 으로 customer_key 를 가진 구독 행을 만든다.
-2. 카드 등록(토스 결제창) 성공 → register_payment_method() 가 빌링키를 발급받아 저장한다.
-   무료체험이 남아 있으면 체험 종료일에, 아니면 즉시 첫 결제를 한다.
+2. 결제수단 등록 성공 → register_payment_method() 가 빌링키(토스) / SID(카카오페이)를 저장한다.
+   토스는 무료체험이 남아 있으면 체험 종료일에, 아니면 즉시 첫 결제를 한다.
+   카카오페이는 등록 승인 자체가 첫 결제라서(start_registration → 승인) 그 결제를 다음 이용 기간 요금으로 기록한다.
 3. 이후 매달 run_due() (CronJob) 가 next_billing_at 이 지난 구독을 결제한다.
    실패하면 config.RETRY_DAYS 간격으로 재시도하고, 모두 실패하면 unpaid 로 바꾼다.
 """
@@ -79,24 +80,82 @@ def list_payments(conn, tenant_id: int, limit: int = 24) -> list:
         return cur.fetchall()
 
 
+def _new_contract(sub: dict) -> bool:
+    return sub["status"] in ("incomplete", "canceled")
+
+
+def registration_order_id(sub: dict, now: datetime) -> str:
+    return f"sub{sub['id']}-reg{now:%Y%m%d%H%M%S}"
+
+
+def start_registration(
+    conn,
+    tenant_id: int,
+    provider_name: str,
+    approval_url: str,
+    cancel_url: str,
+    fail_url: str,
+    mobile: bool = False,
+    now: Optional[datetime] = None,
+    provider: Optional[BillingProvider] = None,
+) -> str:
+    """서버에서 등록을 시작하는 결제대행사(카카오페이)의 결제창 URL 을 받는다. 커밋까지 수행."""
+    now = now or datetime.now()
+    provider = provider or get_provider(provider_name)
+    sub = ensure_subscription(conn, tenant_id)
+    amount = config.PLAN_AMOUNT if _new_contract(sub) else sub["amount"]
+    order_id = registration_order_id(sub, now)
+    start = provider.start_registration(
+        sub["customer_key"], order_id, amount, config.PLAN_NAME,
+        approval_url, cancel_url, fail_url, mobile=mobile,
+    )
+    with conn.cursor() as cur:
+        cur.execute(
+            """
+            UPDATE subscriptions SET pending_provider=%s, pending_token=%s, pending_order_id=%s, updated_at=NOW()
+            WHERE id=%s
+            """,
+            (provider.name, start.token, order_id, sub["id"]),
+        )
+    conn.commit()
+    return start.redirect_url
+
+
 def register_payment_method(
     conn,
     tenant_id: int,
     auth_key: str,
-    customer_key: str,
+    customer_key: str = "",
     customer_email: str = "",
     customer_name: str = "",
     now: Optional[datetime] = None,
     provider: Optional[BillingProvider] = None,
+    provider_name: str = "",
 ) -> dict:
-    """카드 등록 성공 후 빌링키를 발급·저장하고, 결제일이 됐으면 바로 결제한다. 커밋까지 수행."""
+    """결제수단 등록을 마무리한다. 커밋까지 수행.
+
+    - 토스: 브라우저에서 받은 authKey 로 빌링키를 발급하고, 결제일이 됐으면 바로 결제한다.
+    - 카카오페이: pg_token 으로 승인하면 첫 결제와 함께 SID 가 발급된다. 그 결제는 다음 이용 기간
+      (무료체험 중이면 체험 종료일부터 한 달)의 요금으로 기록한다.
+    """
     now = now or datetime.now()
+    old_key = old_provider = None
     try:
         sub = get_subscription(conn, tenant_id, for_update=True)
-        if not sub or sub["customer_key"] != customer_key:
-            raise BillingError("구독 정보가 일치하지 않습니다. 구독 페이지에서 다시 시도해주세요.")
-        provider = provider or get_provider(sub["provider"])
-        method = provider.issue_billing_key(auth_key, customer_key)
+        if not sub:
+            raise BillingError("구독 정보가 없습니다. 구독 페이지에서 다시 시도해주세요.")
+        provider = provider or get_provider(provider_name or sub["provider"])
+        if provider.client_side_registration:
+            if sub["customer_key"] != customer_key:
+                raise BillingError("구독 정보가 일치하지 않습니다. 구독 페이지에서 다시 시도해주세요.")
+            token = order_id = ""
+        else:
+            if sub["pending_provider"] != provider.name or not sub["pending_token"]:
+                raise BillingError("진행 중인 결제수단 등록이 없습니다. 구독 페이지에서 다시 시도해주세요.")
+            token, order_id = sub["pending_token"], sub["pending_order_id"]
+        registration = provider.complete_registration(sub["customer_key"], auth_key, token, order_id)
+        method = registration.method
+        old_key, old_provider = sub["billing_key"], sub["provider"]
 
         with conn.cursor() as cur:
             cur.execute("SELECT trial_ends_at FROM tenants WHERE id=%s", (tenant_id,))
@@ -107,7 +166,7 @@ def register_payment_method(
         next_billing_at = sub["next_billing_at"]
         failed_attempts = sub["failed_attempts"]
         amount = sub["amount"]
-        if status in ("incomplete", "canceled"):
+        if _new_contract(sub):
             # 새로 시작: 이미 낸 기간(해지 후 재가입) 또는 무료체험이 끝나는 날부터 청구
             amount = config.PLAN_AMOUNT
             failed_attempts = 0
@@ -116,7 +175,7 @@ def register_payment_method(
             next_billing_at = start
             status = "trialing" if start > now else "active"
         elif status in ("past_due", "unpaid"):
-            # 카드를 바꿨으니 밀린 결제를 즉시 다시 시도
+            # 결제수단을 바꿨으니 밀린 결제를 즉시 다시 시도
             failed_attempts = 0
             next_billing_at = now
             status = "past_due"
@@ -124,31 +183,33 @@ def register_payment_method(
         with conn.cursor() as cur:
             cur.execute(
                 """
-                UPDATE subscriptions SET billing_key=%s, payment_method=%s, customer_email=%s, customer_name=%s,
-                    status=%s, amount=%s, current_period_end=%s, next_billing_at=%s, failed_attempts=%s,
-                    canceled_at=NULL, updated_at=NOW()
+                UPDATE subscriptions SET provider=%s, billing_key=%s, payment_method=%s,
+                    customer_email=%s, customer_name=%s, status=%s, amount=%s, current_period_end=%s,
+                    next_billing_at=%s, failed_attempts=%s, canceled_at=NULL,
+                    pending_provider=NULL, pending_token=NULL, pending_order_id=NULL, updated_at=NOW()
                 WHERE id=%s
                 """,
-                (method.billing_key, method.display_name, customer_email, customer_name,
+                (provider.name, method.billing_key, method.display_name, customer_email, customer_name,
                  status, amount, period_end, next_billing_at, failed_attempts, sub["id"]),
             )
         sub = get_subscription(conn, tenant_id, for_update=True)
-        if sub["next_billing_at"] <= now:
+        if registration.initial_charge is not None:
+            _record_charge(conn, sub, provider, order_id, registration.initial_charge, now)
+        elif sub["next_billing_at"] <= now:
             charge_subscription(conn, sub, provider, now)
         conn.commit()
-        return get_subscription(conn, tenant_id)
     except Exception:
         conn.rollback()
         raise
+    if old_key and old_key != method.billing_key:
+        _deactivate(old_provider, old_key)
+    return get_subscription(conn, tenant_id)
 
 
 def charge_subscription(conn, sub: dict, provider: BillingProvider, now: datetime):
     """구독 1건을 결제하고 결과를 기록한다. 호출자가 sub 행을 잠그고 커밋한다."""
     period_start = sub["current_period_end"] or now
-    anchor_day = sub["anchor_day"] or period_start.day
-    period_end = add_month(period_start, anchor_day)
     order_id = order_id_for(sub, period_start)
-
     result = provider.charge(
         billing_key=sub["billing_key"],
         customer_key=sub["customer_key"],
@@ -158,6 +219,15 @@ def charge_subscription(conn, sub: dict, provider: BillingProvider, now: datetim
         customer_email=sub["customer_email"] or "",
         customer_name=sub["customer_name"] or "",
     )
+    _record_charge(conn, sub, provider, order_id, result, now)
+    return result
+
+
+def _record_charge(conn, sub: dict, provider: BillingProvider, order_id: str, result, now: datetime):
+    """결제 1건의 결과를 결제 내역과 구독 상태에 반영한다."""
+    period_start = sub["current_period_end"] or now
+    anchor_day = sub["anchor_day"] or period_start.day
+    period_end = add_month(period_start, anchor_day)
     pay_status = "done" if result.success else ("unknown" if result.retryable else "failed")
     with conn.cursor() as cur:
         cur.execute(
@@ -189,10 +259,12 @@ def charge_subscription(conn, sub: dict, provider: BillingProvider, now: datetim
                 (sub["tenant_id"],),
             )
         elif result.retryable:
-            # 결과 미확인: 회차를 올리지 않아 같은 주문번호로 재시도된다
+            # 결과 미확인. 멱등키를 지원하면 회차를 올리지 않아 같은 주문번호로 재시도되고,
+            # 지원하지 않으면(카카오페이) 이중결제를 막기 위해 자동 청구를 멈추고 수동 확인을 기다린다.
+            next_at = now + timedelta(minutes=config.UNKNOWN_RETRY_MINUTES) if provider.idempotent_retry else None
             cur.execute(
                 "UPDATE subscriptions SET next_billing_at=%s, updated_at=NOW() WHERE id=%s",
-                (now + timedelta(minutes=config.UNKNOWN_RETRY_MINUTES), sub["id"]),
+                (next_at, sub["id"]),
             )
         else:
             failed = sub["failed_attempts"] + 1
@@ -204,7 +276,13 @@ def charge_subscription(conn, sub: dict, provider: BillingProvider, now: datetim
                 "UPDATE subscriptions SET status=%s, failed_attempts=%s, next_billing_at=%s, updated_at=NOW() WHERE id=%s",
                 (status, failed, next_at, sub["id"]),
             )
-    return result
+
+
+def _deactivate(provider_name: str, billing_key: str):
+    try:
+        get_provider(provider_name).deactivate(billing_key)
+    except BillingProviderError:
+        pass
 
 
 def _to_local_naive(dt: Optional[datetime]) -> Optional[datetime]:
@@ -217,6 +295,7 @@ def _to_local_naive(dt: Optional[datetime]) -> Optional[datetime]:
 def cancel_subscription(conn, tenant_id: int, now: Optional[datetime] = None) -> Optional[dict]:
     """자동결제를 해지한다. 이미 결제한 기간(current_period_end)까지는 계속 이용할 수 있다."""
     now = now or datetime.now()
+    sub = get_subscription(conn, tenant_id)
     with conn.cursor() as cur:
         cur.execute(
             """
@@ -227,6 +306,8 @@ def cancel_subscription(conn, tenant_id: int, now: Optional[datetime] = None) ->
             (now, tenant_id),
         )
     conn.commit()
+    if sub and sub["billing_key"]:
+        _deactivate(sub["provider"], sub["billing_key"])
     return get_subscription(conn, tenant_id)
 
 
@@ -270,8 +351,10 @@ def list_all_subscriptions(conn) -> list:
         cur.execute(
             """
             SELECT t.slug, t.church_name, t.status AS tenant_status, t.trial_ends_at,
-                   s.status, s.amount, s.payment_method, s.current_period_end, s.next_billing_at,
-                   s.failed_attempts, s.canceled_at
+                   s.status, s.provider, s.amount, s.payment_method, s.current_period_end, s.next_billing_at,
+                   s.failed_attempts, s.canceled_at,
+                   EXISTS (SELECT 1 FROM subscription_payments p
+                           WHERE p.subscription_id = s.id AND p.status = 'unknown') AS needs_review
             FROM tenants t LEFT JOIN subscriptions s ON s.tenant_id = t.id
             ORDER BY t.id
             """

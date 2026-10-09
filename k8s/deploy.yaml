@@ -167,6 +167,19 @@ spec:
               name: church-platform-secret
               key: TOSS_SECRET_KEY
               optional: true
+        # 카카오페이 정기결제. 테스트는 CID TCSUBSCRIP + 개발자센터 테스트 Secret key
+        - name: KAKAOPAY_SECRET_KEY
+          valueFrom:
+            secretKeyRef:
+              name: church-platform-secret
+              key: KAKAOPAY_SECRET_KEY
+              optional: true
+        - name: KAKAOPAY_CID
+          valueFrom:
+            secretKeyRef:
+              name: church-platform-secret
+              key: KAKAOPAY_CID
+              optional: true
         volumeMounts:
         - name: uploads
           mountPath: /app/uploads

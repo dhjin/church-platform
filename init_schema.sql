@@ -245,6 +245,10 @@ CREATE TABLE IF NOT EXISTS subscriptions (
     next_billing_at TIMESTAMP,
     failed_attempts INTEGER NOT NULL DEFAULT 0,
     canceled_at TIMESTAMP,
+    -- 서버에서 시작하는 등록(카카오페이) 진행 중 정보
+    pending_provider TEXT,
+    pending_token TEXT,
+    pending_order_id TEXT,
     created_at TIMESTAMP DEFAULT NOW(),
     updated_at TIMESTAMP DEFAULT NOW()
 );
@@ -256,7 +260,7 @@ CREATE TABLE IF NOT EXISTS subscription_payments (
     provider TEXT NOT NULL,
     order_id TEXT UNIQUE NOT NULL,
     amount INTEGER NOT NULL,
-    -- done / failed / unknown(네트워크 오류 등으로 결과 미확인, 같은 order_id 로 재시도)
+    -- done / failed / unknown(네트워크 오류 등으로 결과 미확인. 토스는 같은 order_id 로 재시도, 카카오페이는 수동 확인)
     status TEXT NOT NULL,
     period_start TIMESTAMP NOT NULL,
     period_end TIMESTAMP NOT NULL,

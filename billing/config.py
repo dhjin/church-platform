@@ -4,7 +4,7 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-# 결제대행사: toss (기본). 추후 cms / kakaopay 등 추가 예정
+# 새 구독의 기본 결제대행사. 교회는 구독 화면에서 toss / kakaopay 중 선택할 수 있다(추후 cms 추가 예정)
 BILLING_PROVIDER = os.getenv("BILLING_PROVIDER", "toss")
 
 # 요금제: 교회당 월 19,000원
@@ -21,3 +21,8 @@ UNKNOWN_RETRY_MINUTES = int(os.getenv("BILLING_UNKNOWN_RETRY_MINUTES", "60"))
 TOSS_CLIENT_KEY = os.getenv("TOSS_CLIENT_KEY", "")
 TOSS_SECRET_KEY = os.getenv("TOSS_SECRET_KEY", "")
 TOSS_API_BASE = os.getenv("TOSS_API_BASE", "https://api.tosspayments.com")
+
+# 카카오페이 정기결제. 테스트 CID: TCSUBSCRIP (가맹 계약 없이 개발 가능)
+KAKAOPAY_SECRET_KEY = os.getenv("KAKAOPAY_SECRET_KEY", "")
+KAKAOPAY_CID = os.getenv("KAKAOPAY_CID", "TCSUBSCRIP")
+KAKAOPAY_API_BASE = os.getenv("KAKAOPAY_API_BASE", "https://open-api.kakaopay.com")

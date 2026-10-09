@@ -30,6 +30,19 @@ spec:
                 secretKeyRef:
                   name: church-platform-secret
                   key: TOSS_SECRET_KEY
+                  optional: true
+            - name: KAKAOPAY_SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: church-platform-secret
+                  key: KAKAOPAY_SECRET_KEY
+                  optional: true
+            - name: KAKAOPAY_CID
+              valueFrom:
+                secretKeyRef:
+                  name: church-platform-secret
+                  key: KAKAOPAY_CID
+                  optional: true
             resources:
               requests:
                 cpu: "50m"

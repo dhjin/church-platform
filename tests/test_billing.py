@@ -206,3 +206,102 @@ def test_cancel_stops_charges_but_keeps_paid_period(db):
     sub = register_payment_method(db, tid, "auth3", sub["customer_key"], now=NOW + timedelta(days=5), provider=p)
     assert sub["status"] == "trialing" and sub["next_billing_at"] == paid_until
     assert len(p.charges) == 1
+
+
+# ─── KakaoPay provider (HTTP mocked) ─────────────────────────────────────────
+
+from billing.providers import KakaoPayBillingProvider, Registration
+from billing.service import start_registration
+
+
+def _kakao(handler):
+    return KakaoPayBillingProvider(secret_key="DEV_SECRET", cid="TCSUBSCRIP", transport=httpx.MockTransport(handler))
+
+
+def test_kakaopay_ready_and_approve():
+    calls = []
+
+    def handler(req):
+        body = json.loads(req.content)
+        calls.append((req.url.path, req.headers["Authorization"], body))
+        if req.url.path.endswith("/ready"):
+            return httpx.Response(200, json={"tid": "T1", "next_redirect_pc_url": "https://pc", "next_redirect_mobile_url": "https://m"})
+        return httpx.Response(200, json={
+            "tid": "T1", "sid": "S1", "payment_method_type": "CARD",
+            "card_info": {"kakaopay_issuer_corp": "신한카드"}, "approved_at": "2026-10-09T10:00:00",
+        })
+
+    p = _kakao(handler)
+    start = p.start_registration("cus_1", "sub1-reg1", 19000, "월 구독", "https://a", "https://c", "https://f", mobile=True)
+    assert start.redirect_url == "https://m" and start.token == "T1"
+    reg = p.complete_registration("cus_1", "pg_tok", "T1", "sub1-reg1")
+    assert reg.method.billing_key == "S1" and reg.method.display_name == "카카오페이 신한카드"
+    assert reg.initial_charge.success and reg.initial_charge.approved_at.utcoffset() == timedelta(hours=9)
+    assert calls[0][0] == "/online/v1/payment/ready" and calls[0][1] == "SECRET_KEY DEV_SECRET"
+    assert calls[0][2]["cid"] == "TCSUBSCRIP" and calls[0][2]["total_amount"] == 19000
+    assert calls[1][0] == "/online/v1/payment/approve" and calls[1][2]["pg_token"] == "pg_tok"
+
+
+def test_kakaopay_charge_success_and_decline():
+    ok = _kakao(lambda req: httpx.Response(200, json={"tid": "T2", "approved_at": "2026-11-09T10:00:00"}))
+    r = ok.charge("S1", "cus_1", "sub1-20261109-1", 19000, "월 구독")
+    assert r.success and r.payment_key == "T2"
+
+    decline = _kakao(lambda req: httpx.Response(400, json={
+        "error_code": -780, "error_message": "approval failure!",
+        "extras": {"method_result_code": "8003", "method_result_message": "잔액 부족"},
+    }))
+    r = decline.charge("S1", "cus_1", "o", 19000, "x")
+    assert not r.success and not r.retryable and r.failure_message == "잔액 부족"
+
+
+class FakeKakao(FakeProvider):
+    name = "kakaopay"
+    client_side_registration = False
+    idempotent_retry = False
+
+    def start_registration(self, customer_key, order_id, amount, order_name, approval_url, cancel_url, fail_url, mobile=False):
+        from billing.providers import RegistrationStart
+        self.started = (order_id, amount)
+        return RegistrationStart(redirect_url="https://kakao", token="TID")
+
+    def complete_registration(self, customer_key, auth_key, token="", order_id=""):
+        assert token == "TID" and order_id == self.started[0]
+        return Registration(method=BillingMethod(billing_key="SID", display_name="카카오페이머니"),
+                            initial_charge=ChargeResult(success=True, payment_key="TID"))
+
+
+def test_kakaopay_registration_during_trial_prepays_first_period(db):
+    trial_end = NOW + timedelta(days=10)
+    tid = _tenant(db, trial_end)
+    p = FakeKakao()
+    url = start_registration(db, tid, "kakaopay", "a", "c", "f", now=NOW, provider=p)
+    assert url == "https://kakao" and p.started[1] == config.PLAN_AMOUNT
+    sub = register_payment_method(db, tid, "pg_tok", now=NOW, provider=p)
+    assert sub["provider"] == "kakaopay" and sub["status"] == "active" and sub["billing_key"] == "SID"
+    assert sub["current_period_start"] == trial_end
+    assert sub["next_billing_at"] == add_month(trial_end, trial_end.day)
+    assert sub["pending_token"] is None
+    pays = list_payments(db, tid)
+    assert len(pays) == 1 and pays[0]["status"] == "done" and pays[0]["order_id"] == p.started[0]
+
+    # 다음 달 정기 결제
+    assert run_due(db, now=sub["next_billing_at"], provider_factory=lambda n: p)["done"] == 1
+
+
+def test_kakaopay_approve_without_start_is_rejected(db):
+    tid = _tenant(db, NOW)
+    ensure_subscription(db, tid)
+    with pytest.raises(Exception):
+        register_payment_method(db, tid, "pg_tok", now=NOW, provider=FakeKakao())
+
+
+def test_kakaopay_unknown_result_stops_auto_retry(db):
+    tid = _tenant(db, NOW - timedelta(days=1))
+    p = FakeKakao(["network"])
+    start_registration(db, tid, "kakaopay", "a", "c", "f", now=NOW, provider=p)
+    sub = register_payment_method(db, tid, "pg_tok", now=NOW, provider=p)
+    run_due(db, now=sub["next_billing_at"], provider_factory=lambda n: p)
+    sub = get_subscription(db, tid)
+    assert sub["next_billing_at"] is None  # 이중결제 방지를 위해 수동 확인 대기
+    assert list_payments(db, tid)[0]["status"] == "unknown"

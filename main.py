@@ -24,7 +24,7 @@ from database import get_conn
 from middleware import TenantMiddleware
 from billing import config as billing_config
 from billing import service as billing
-from billing.providers import BillingProviderError
+from billing.providers import BillingProviderError, configured_providers
 
 load_dotenv()
 
@@ -2119,6 +2119,7 @@ async def billing_page(request: Request, result: str = "", error: str = "", user
         "trial_ends_at": trial_ends_at, "status_label": SUBSCRIPTION_STATUS_LABELS.get(sub["status"], sub["status"]),
         "plan_name": billing_config.PLAN_NAME, "plan_amount": billing_config.PLAN_AMOUNT,
         "toss_client_key": billing_config.TOSS_CLIENT_KEY, "result": result, "error": error,
+        "providers": [p.name for p in configured_providers()],
     })
 
 
@@ -2133,7 +2134,7 @@ async def billing_success(
         tenant = request.state.tenant or {}
         sub = billing.register_payment_method(
             conn, user["tenant_id"], authKey, customerKey,
-            customer_name=tenant.get("church_name", ""),
+            customer_name=tenant.get("church_name", ""), provider_name="toss",
         )
     except (billing.BillingError, BillingProviderError) as e:
         msg = e.message if isinstance(e, BillingProviderError) else str(e)
@@ -2150,6 +2151,60 @@ async def billing_fail(code: str = "", message: str = "", user: dict = Depends(r
     if code == "PAY_PROCESS_CANCELED":
         message = "카드 등록을 취소했습니다."
     return _billing_redirect(error=message or "카드 등록에 실패했습니다.")
+
+
+def _public_origin(request: Request) -> str:
+    proto = request.headers.get("x-forwarded-proto", request.url.scheme).split(",")[0].strip()
+    return f"{proto}://{request.headers.get('host', request.url.netloc)}"
+
+
+@app.post("/admin/billing/kakaopay/start")
+async def billing_kakaopay_start(request: Request, user: dict = Depends(require_admin)):
+    origin = _public_origin(request)
+    ua = request.headers.get("user-agent", "")
+    conn = get_conn()
+    try:
+        url = billing.start_registration(
+            conn, user["tenant_id"], "kakaopay",
+            approval_url=f"{origin}/admin/billing/kakaopay/approve",
+            cancel_url=f"{origin}/admin/billing/kakaopay/cancel",
+            fail_url=f"{origin}/admin/billing/kakaopay/fail",
+            mobile=bool(re.search(r"Mobi|Android|iPhone", ua)),
+        )
+    except BillingProviderError as e:
+        return _billing_redirect(error=e.message or "카카오페이 결제창을 열지 못했습니다.")
+    finally:
+        conn.close()
+    return RedirectResponse(url=url, status_code=303)
+
+
+@app.get("/admin/billing/kakaopay/approve")
+async def billing_kakaopay_approve(request: Request, pg_token: str = "", user: dict = Depends(require_admin)):
+    if not pg_token:
+        return _billing_redirect(error="카카오페이 승인 정보가 없습니다.")
+    conn = get_conn()
+    try:
+        tenant = request.state.tenant or {}
+        billing.register_payment_method(
+            conn, user["tenant_id"], pg_token,
+            customer_name=tenant.get("church_name", ""), provider_name="kakaopay",
+        )
+    except (billing.BillingError, BillingProviderError) as e:
+        msg = e.message if isinstance(e, BillingProviderError) else str(e)
+        return _billing_redirect(error=msg)
+    finally:
+        conn.close()
+    return _billing_redirect(result="registered")
+
+
+@app.get("/admin/billing/kakaopay/cancel")
+async def billing_kakaopay_cancel(user: dict = Depends(require_admin)):
+    return _billing_redirect(error="카카오페이 등록을 취소했습니다.")
+
+
+@app.get("/admin/billing/kakaopay/fail")
+async def billing_kakaopay_fail(user: dict = Depends(require_admin)):
+    return _billing_redirect(error="카카오페이 결제에 실패했습니다.")
 
 
 @app.post("/admin/billing/cancel")
