@@ -61,7 +61,7 @@ def ensure_subscription(conn, tenant_id: int) -> dict:
             INSERT INTO subscriptions (tenant_id, provider, plan, amount, customer_key)
             VALUES (%s, %s, %s, %s, %s) ON CONFLICT (tenant_id) DO NOTHING
             """,
-            (tenant_id, config.BILLING_PROVIDER, config.PLAN_CODE, config.PLAN_AMOUNT,
+            (tenant_id, config.BILLING_PROVIDER, config.PLAN_CODE, config.plan_info(config.PLAN_CODE)["amount"],
              f"cus_{uuid.uuid4().hex}"),
         )
     conn.commit()
@@ -103,10 +103,10 @@ def start_registration(
     now = now or datetime.now()
     provider = provider or get_provider(provider_name)
     sub = ensure_subscription(conn, tenant_id)
-    amount = config.PLAN_AMOUNT if _new_contract(sub) else sub["amount"]
+    amount = config.plan_info(sub["plan"])["amount"] if _new_contract(sub) else sub["amount"]
     order_id = registration_order_id(sub, now)
     start = provider.start_registration(
-        sub["customer_key"], order_id, amount, config.PLAN_NAME,
+        sub["customer_key"], order_id, amount, config.plan_info(sub["plan"])["order_name"],
         approval_url, cancel_url, fail_url, mobile=mobile,
     )
     with conn.cursor() as cur:
@@ -168,7 +168,7 @@ def register_payment_method(
         amount = sub["amount"]
         if _new_contract(sub):
             # 새로 시작: 이미 낸 기간(해지 후 재가입) 또는 무료체험이 끝나는 날부터 청구
-            amount = config.PLAN_AMOUNT
+            amount = config.plan_info(sub["plan"])["amount"]
             failed_attempts = 0
             start = period_end if period_end and period_end > now else max(now, trial_ends_at or now)
             period_end = start
@@ -208,6 +208,7 @@ def register_payment_method(
 
 def charge_subscription(conn, sub: dict, provider: BillingProvider, now: datetime):
     """구독 1건을 결제하고 결과를 기록한다. 호출자가 sub 행을 잠그고 커밋한다."""
+    sub = _apply_scheduled_plan(conn, sub)
     period_start = sub["current_period_end"] or now
     order_id = order_id_for(sub, period_start)
     result = provider.charge(
@@ -215,7 +216,7 @@ def charge_subscription(conn, sub: dict, provider: BillingProvider, now: datetim
         customer_key=sub["customer_key"],
         order_id=order_id,
         amount=sub["amount"],
-        order_name=config.PLAN_NAME,
+        order_name=config.plan_info(sub["plan"])["order_name"],
         customer_email=sub["customer_email"] or "",
         customer_name=sub["customer_name"] or "",
     )
@@ -360,3 +361,113 @@ def list_all_subscriptions(conn) -> list:
             """
         )
         return cur.fetchall()
+
+
+# ─── 요금제 변경 · 1회 결제 ──────────────────────────────────────────────────
+
+def current_plan(conn, tenant_id: int) -> str:
+    """교회가 지금 쓸 수 있는 요금제. 구독 행이 없거나 알 수 없는 값이면 standard."""
+    with conn.cursor() as cur:
+        cur.execute("SELECT plan FROM subscriptions WHERE tenant_id=%s", (tenant_id,))
+        row = cur.fetchone()
+    return row[0] if row and row[0] in config.PLANS else config.PLAN_CODE
+
+
+def change_plan(conn, tenant_id: int, plan: str) -> dict:
+    """요금제를 바꾼다. 올리면 바로 적용되고(다음 결제일부터 새 금액 청구), 내리면 다음 결제일에 적용된다.
+    결제수단이 없거나 해지된 구독은 새 계약 금액이 등록 시점에 정해지므로 바로 바꾼다. 커밋까지 수행."""
+    if plan not in config.PLANS:
+        raise ValueError(f"unknown plan: {plan}")
+    try:
+        ensure_subscription(conn, tenant_id)
+        sub = get_subscription(conn, tenant_id, for_update=True)
+        current = sub["plan"] if sub["plan"] in config.PLANS else config.PLAN_CODE
+        upgrade = config.PLAN_ORDER.index(plan) > config.PLAN_ORDER.index(current)
+        with conn.cursor() as cur:
+            if plan == current:
+                cur.execute("UPDATE subscriptions SET scheduled_plan=NULL, updated_at=NOW() WHERE id=%s", (sub["id"],))
+            elif upgrade or _new_contract(sub):
+                cur.execute(
+                    "UPDATE subscriptions SET plan=%s, amount=%s, scheduled_plan=NULL, updated_at=NOW() WHERE id=%s",
+                    (plan, config.PLANS[plan]["amount"], sub["id"]),
+                )
+                cur.execute("UPDATE tenants SET plan=%s WHERE id=%s", (plan, tenant_id))
+            else:
+                cur.execute("UPDATE subscriptions SET scheduled_plan=%s, updated_at=NOW() WHERE id=%s", (plan, sub["id"]))
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
+    return get_subscription(conn, tenant_id)
+
+
+def _apply_scheduled_plan(conn, sub: dict) -> dict:
+    """예약된 요금제 내림을 결제 직전에 반영한다. 결과 미확인 재시도(같은 주문번호)에는 금액을 바꾸지 않는다."""
+    plan = sub.get("scheduled_plan")
+    if not plan or plan not in config.PLANS:
+        return sub
+    with conn.cursor() as cur:
+        cur.execute(
+            "SELECT 1 FROM subscription_payments WHERE order_id=%s AND status='unknown'",
+            (order_id_for(sub, sub["current_period_end"] or datetime.now()),),
+        )
+        if cur.fetchone():
+            return sub
+        cur.execute(
+            "UPDATE subscriptions SET plan=%s, amount=%s, scheduled_plan=NULL, updated_at=NOW() WHERE id=%s",
+            (plan, config.PLANS[plan]["amount"], sub["id"]),
+        )
+        cur.execute("UPDATE tenants SET plan=%s WHERE id=%s", (plan, sub["tenant_id"]))
+    return {**sub, "plan": plan, "amount": config.PLANS[plan]["amount"], "scheduled_plan": None}
+
+
+def list_one_time_payments(conn, tenant_id: int) -> list:
+    with _dict_cur(conn) as cur:
+        cur.execute(
+            """SELECT kind, order_id, amount, status, failure_message, approved_at, created_at
+               FROM one_time_payments WHERE tenant_id=%s ORDER BY created_at DESC""",
+            (tenant_id,),
+        )
+        return cur.fetchall()
+
+
+def charge_setup_fee(conn, tenant_id: int, now: Optional[datetime] = None,
+                     provider: Optional[BillingProvider] = None) -> dict:
+    """등록된 자동결제 수단으로 AI 맞춤 제작 셋업비를 1회 결제한다. 이미 결제했거나 확인 중이면 다시 청구하지 않는다.
+    결과를 알 수 없으면 이중결제를 막기 위해 자동 재시도하지 않고 unknown 으로 남긴다. 커밋까지 수행."""
+    now = now or datetime.now()
+    try:
+        sub = get_subscription(conn, tenant_id, for_update=True)
+        if not sub or not sub["billing_key"] or sub["status"] == "canceled":
+            raise BillingProviderError("NO_PAYMENT_METHOD", "먼저 구독 결제수단을 등록해 주세요.")
+        with _dict_cur(conn) as cur:
+            cur.execute(
+                "SELECT * FROM one_time_payments WHERE tenant_id=%s AND kind='setup' AND status IN ('done', 'unknown')",
+                (tenant_id,),
+            )
+            existing = cur.fetchone()
+        if existing:
+            conn.rollback()
+            return existing
+        provider = provider or get_provider(sub["provider"])
+        order_id = f"sub{sub['id']}-setup{now:%Y%m%d%H%M%S}"
+        result = provider.charge(
+            billing_key=sub["billing_key"], customer_key=sub["customer_key"], order_id=order_id,
+            amount=config.SETUP_FEE_AMOUNT, order_name=config.SETUP_FEE_NAME,
+            customer_email=sub["customer_email"] or "", customer_name=sub["customer_name"] or "",
+        )
+        status = "done" if result.success else ("unknown" if result.retryable else "failed")
+        with _dict_cur(conn) as cur:
+            cur.execute(
+                """INSERT INTO one_time_payments (tenant_id, kind, provider, order_id, amount, status,
+                       payment_key, failure_code, failure_message, approved_at)
+                   VALUES (%s, 'setup', %s, %s, %s, %s, %s, %s, %s, %s) RETURNING *""",
+                (tenant_id, provider.name, order_id, config.SETUP_FEE_AMOUNT, status, result.payment_key,
+                 result.failure_code, result.failure_message, _to_local_naive(result.approved_at)),
+            )
+            row = cur.fetchone()
+        conn.commit()
+        return row
+    except Exception:
+        conn.rollback()
+        raise

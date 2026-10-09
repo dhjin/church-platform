@@ -42,6 +42,14 @@
                 <div class="billing-msg ok">결제수단이 등록되었습니다. 매월 자동으로 결제됩니다.</div>
                 {% elif result == 'canceled' %}
                 <div class="billing-msg ok">자동결제를 해지했습니다. 이미 결제한 기간까지는 계속 이용할 수 있습니다.</div>
+                {% elif result == 'plan_changed' %}
+                <div class="billing-msg ok">요금제를 변경했습니다. 새 기능은 바로 쓸 수 있고, 새 요금은 다음 결제일부터 청구됩니다.</div>
+                {% elif result == 'plan_scheduled' %}
+                <div class="billing-msg ok">요금제 변경을 예약했습니다. 다음 결제일부터 적용됩니다.</div>
+                {% elif result == 'setup_paid' %}
+                <div class="billing-msg ok">AI 맞춤 제작 셋업비가 결제되었습니다. 아래 맞춤 제작 요청에 원하시는 내용을 남겨 주세요.</div>
+                {% elif result == 'setup_unknown' %}
+                <div class="billing-msg err">셋업비 결제 결과를 확인하지 못했습니다. 이중 결제를 막기 위해 다시 청구하지 않고 확인 후 안내드리겠습니다.</div>
                 {% endif %}
                 {% if error %}
                 <div class="billing-msg err">{{ error }}</div>
@@ -94,6 +102,65 @@
                             카카오페이: 등록할 때 첫 달 요금이 바로 결제되며, 이용 기간은 무료체험이 끝나는 날부터 시작합니다.<br>
                             결제가 실패하면 며칠 간격으로 다시 시도하며, 결제수단을 바꾸면 밀린 금액을 바로 결제합니다.
                         </p>
+                    </div>
+                </section>
+
+                <section class="admin-section" id="plans">
+                    <h2 class="section-title">요금제</h2>
+                    <div class="admin-card">
+                        {% if sub.scheduled_plan %}
+                        <p class="billing-note" style="margin:0 0 12px">다음 결제일부터 <strong>{{ plans[sub.scheduled_plan].label }}</strong> 요금제로 바뀝니다.</p>
+                        {% endif %}
+                        <div class="billing-summary">
+                            {% for key in plan_order %}{% set p = plans[key] %}
+                            <div style="{% if key == current_plan %}outline:2px solid #22c55e;{% endif %}display:flex;flex-direction:column;gap:6px">
+                                <small>{{ p.label }}{% if key == current_plan %} · 사용 중{% endif %}</small>
+                                <strong>월 {{ "{:,}".format(p.amount) }}원</strong>
+                                <ul style="margin:4px 0 8px 16px;font-size:.82rem;color:#475569;line-height:1.6">
+                                    {% for f in p.features %}<li>{{ f }}</li>{% endfor %}
+                                </ul>
+                                {% if key != current_plan and key != sub.scheduled_plan %}
+                                <form method="POST" action="/admin/billing/plan" style="margin-top:auto"
+                                    onsubmit="return confirm('{{ p.label }} 요금제로 바꿀까요?{% if plan_order.index(key) > plan_order.index(current_plan) %} 새 기능은 바로 쓸 수 있고 다음 결제일부터 월 {{ "{:,}".format(p.amount) }}원이 청구됩니다.{% else %} 다음 결제일부터 적용됩니다.{% endif %}')">
+                                    <input type="hidden" name="plan" value="{{ key }}">
+                                    <button type="submit" class="btn btn-primary" style="width:100%">{% if plan_order.index(key) > plan_order.index(current_plan) %}올리기{% else %}내리기{% endif %}</button>
+                                </form>
+                                {% endif %}
+                            </div>
+                            {% endfor %}
+                        </div>
+                        <p class="billing-note">올린 요금제는 바로 적용되고 다음 결제일부터 새 금액이 청구됩니다(일할 계산 없음). 내린 요금제는 다음 결제일에 적용됩니다.</p>
+                    </div>
+                </section>
+
+                <section class="admin-section" id="setup">
+                    <h2 class="section-title">AI 맞춤 제작 셋업 (1회)</h2>
+                    <div class="admin-card">
+                        <p style="margin-bottom:10px">운영자가 요구사항을 상담하고, AI 디자인안 적용과 기존 홈페이지 내용 이전까지 대신 해 드립니다. <strong>{{ "{:,}".format(setup_fee) }}원</strong>, 등록된 결제수단으로 1회 결제됩니다.</p>
+                        {% if setup_paid %}
+                        <p class="billing-note" style="color:#047857">신청 완료. <a href="/admin/site#custom">사이트 디자인 &gt; 맞춤 제작 요청</a>에 원하시는 내용을 남겨 주세요.</p>
+                        {% elif sub.billing_key and sub.status != 'canceled' %}
+                        <form method="POST" action="/admin/billing/setup-fee" onsubmit="return confirm('AI 맞춤 제작 셋업비 {{ "{:,}".format(setup_fee) }}원을 등록된 결제수단으로 결제할까요?')">
+                            <button type="submit" class="btn btn-primary">셋업 신청하고 결제</button>
+                        </form>
+                        {% else %}
+                        <p class="billing-note">먼저 위에서 구독 결제수단을 등록해 주세요.</p>
+                        {% endif %}
+                        {% if one_time %}
+                        <table class="billing-table" style="margin-top:12px">
+                            <thead><tr><th>일시</th><th>항목</th><th>금액</th><th>결과</th></tr></thead>
+                            <tbody>
+                                {% for p in one_time %}
+                                <tr>
+                                    <td>{{ (p.approved_at or p.created_at).strftime('%Y-%m-%d') }}</td>
+                                    <td>{% if p.kind == 'setup' %}AI 맞춤 제작 셋업{% else %}{{ p.kind }}{% endif %}</td>
+                                    <td>{{ "{:,}".format(p.amount) }}원</td>
+                                    <td>{% if p.status == 'done' %}완료{% elif p.status == 'unknown' %}확인 중{% else %}실패{% if p.failure_message %} ({{ p.failure_message }}){% endif %}{% endif %}</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                        {% endif %}
                     </div>
                 </section>
 
