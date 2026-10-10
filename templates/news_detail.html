@@ -343,8 +343,9 @@
                 <input type="text" name="title" value="{{ news.title }}" required>
                 <textarea name="content">{{ news.content }}</textarea>
                 <div style="margin-bottom: 1rem;">
-                    <label style="display: block; margin-bottom: 4px; font-size: 0.9rem; color: var(--text-light);">새 이미지 (선택, 기존 이미지 교체)</label>
+                    <label style="display: block; margin-bottom: 4px; font-size: 0.9rem; color: var(--text-light);">이미지 추가 (선택, 기존 이미지 뒤에 붙음)</label>
                     <input type="file" name="images" multiple accept="image/*">
+                    <a href="/admin/news/edit/{{ news.id }}" style="display:inline-block; margin-top:6px; font-size:0.9rem;">이미지 삭제·날짜 변경은 전체 수정 화면에서 &rarr;</a>
                 </div>
                 <button type="submit" class="edit-save-btn">저장</button>
                 <button type="button" class="edit-cancel-btn" onclick="document.getElementById('editForm').classList.remove('active')">취소</button>
@@ -363,7 +364,7 @@
                     <div class="comment-header">
                         <span class="comment-author">{{ comment.name or comment.username }}</span>
                         <span class="comment-date">{{ comment.created_at[:16].replace('T', ' ') }}</span>
-                        {% if user and (user.id == comment.user_id or user.role == 'admin') %}
+                        {% if user and (user.id == comment.user_id or user.role in ['owner', 'admin', 'manager']) %}
                         <form method="POST" action="/comment/{{ comment.id }}/delete?redirect={{ lp }}/news/{{ news.id }}"
                             style="display: inline; margin-left: auto;">
                             <button type="submit" class="comment-delete-btn"

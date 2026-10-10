@@ -7,7 +7,7 @@
     <title>관리자 페이지 - {{ t.church_name }}</title>
     <link rel="stylesheet" href="/static/css/style.css?v=26">
     {% include "_site_head.html" %}
-    <link rel="stylesheet" href="/static/css/admin.css?v=16">
+    <link rel="stylesheet" href="/static/css/admin.css?v=17">
 </head>
 
 <body>
@@ -43,9 +43,25 @@
 
         <div class="admin-container">
             <div class="container">
+                <nav class="admin-quicknav" aria-label="관리 메뉴 바로가기">
+                    <a href="#news">교회소식</a>
+                    {% if user.role in ['owner', 'admin'] %}<a href="#bulletin">주보</a>{% endif %}
+                    <a href="#pastoral">목양의 窓</a>
+                    {% if user.role in ['owner', 'admin'] %}
+                    <a href="#sermon">설교</a>
+                    <a href="#shorts">숏츠</a>
+                    <a href="#qt">QT</a>
+                    <a href="#vision">비전</a>
+                    <a href="#offering">헌금 링크</a>
+                    <a href="#church-info">소개 글</a>
+                    {% endif %}
+                    <a href="#about">비전·사명 소개</a>
+                    <a href="#members">섬기는 분들</a>
+                    {% if user.role == 'owner' %}<a href="#users">사용자</a>{% endif %}
+                </nav>
                 {% if user.role in ['owner', 'admin'] %}
                 <!-- Church Info Section -->
-                <section class="admin-section">
+                <section class="admin-section" id="church-info">
                     <h2 class="section-title">교회 소개 관리</h2>
                     <div class="admin-card">
                         <form method="POST" action="/admin/church-info/update">
@@ -60,7 +76,7 @@
                 </section>
 
                 <!-- Vision Management Section -->
-                <section class="admin-section">
+                <section class="admin-section" id="vision">
                     <h2 class="section-title">교회비전 관리</h2>
 
                     <!-- Create Vision Form -->
@@ -124,7 +140,7 @@
                 </section>
 
                 <!-- Sermon Management Section -->
-                <section class="admin-section">
+                <section class="admin-section" id="sermon">
                     <h2 class="section-title">설교 관리</h2>
 
                     <!-- Create Sermon Form -->
@@ -219,7 +235,7 @@
                 </section>
 
                 <!-- YouTube Shorts Management Section -->
-                <section class="admin-section">
+                <section class="admin-section" id="shorts">
                     <h2 class="section-title">숏츠 관리</h2>
 
                     <!-- Create Shorts Form -->
@@ -296,7 +312,7 @@
                 </section>
 
                 <!-- 오늘의 QT Management Section -->
-                <section class="admin-section">
+                <section class="admin-section" id="qt">
                     <h2 class="section-title">오늘의 QT 관리</h2>
 
                     <!-- Create QT Form -->
@@ -373,7 +389,7 @@
                 </section>
 
                 <!-- 목양의 窓 Management Section -->
-                <section class="admin-section">
+                <section class="admin-section" id="pastoral">
                     <h2 class="section-title">목양의 窓 관리</h2>
 
                     <div class="admin-card">
@@ -606,11 +622,20 @@
                     <div class="admin-card">
                         <h3>등록된 주보</h3>
                         {% if bulletins %}
-                        <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:12px">
+                        <div data-collapsible="12" data-search-label="주보 제목·날짜 검색" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:12px">
                             {% for b in bulletins %}
                             <div style="border:1px solid #eee;border-radius:8px;overflow:hidden;text-align:center">
-                                <img src="{{ b.image_path }}" alt="{{ b.title }}" style="width:100%;aspect-ratio:3/4;object-fit:cover">
-                                <div style="padding:6px;font-size:.78rem;color:#555">{{ b.date }}</div>
+                                <a href="{{ b.image_path }}" target="_blank" rel="noopener"><img src="{{ b.image_path }}" alt="{{ b.title }}" loading="lazy" style="width:100%;aspect-ratio:3/4;object-fit:cover"></a>
+                                <div style="padding:6px;font-size:.78rem;color:#555">{{ b.date }}<br>{{ b.title }}</div>
+                                <details style="text-align:left;padding:0 6px 6px;font-size:.78rem">
+                                    <summary style="cursor:pointer;text-align:center;color:#1e3a5f">수정</summary>
+                                    <form method="POST" action="/admin/bulletin/update/{{ b.id }}" enctype="multipart/form-data" style="display:grid;gap:4px;margin-top:6px">
+                                        <input type="date" name="date" value="{{ b.date }}" required>
+                                        <input type="text" name="title" value="{{ b.title }}" placeholder="제목">
+                                        <input type="file" name="image" accept="image/*,.pdf" title="새 파일을 고르면 이미지가 바뀝니다">
+                                        <button type="submit" class="btn btn-primary" style="font-size:.78rem;padding:4px">저장</button>
+                                    </form>
+                                </details>
                                 <form method="POST" action="/admin/bulletin/delete/{{ b.id }}" onsubmit="return confirm('삭제할까요?')">
                                     <button type="submit" class="btn btn-danger" style="width:100%;border-radius:0;font-size:.78rem;padding:4px">삭제</button>
                                 </form>
@@ -691,7 +716,7 @@
                 {% endif %}{# end admin/owner only #}
 
                 <!-- News Management Section (manager+) -->
-                <section class="admin-section">
+                <section class="admin-section" id="news">
                     <h2 class="section-title">교회소식 관리</h2>
 
                     <!-- Create News Form -->
@@ -751,8 +776,8 @@
                                         <td>{{ news.date }}</td>
                                         <td>{{ news.views }}</td>
                                         <td>
-                                            {% if news.image_path %}
-                                            <span class="badge badge-success">있음</span>
+                                            {% if news.image_count %}
+                                            <span class="badge badge-success">{{ news.image_count }}장</span>
                                             {% else %}
                                             <span class="badge badge-secondary">없음</span>
                                             {% endif %}
@@ -777,7 +802,7 @@
                 </section>
 
                 <!-- Church About Management Section -->
-                <section class="admin-section">
+                <section class="admin-section" id="about">
                     <h2 class="section-title">교회소개 관리</h2>
                     <div class="admin-card">
                         <form method="POST" action="/admin/about/update">
@@ -817,7 +842,7 @@
                 </section>
 
                 <!-- Members Management Section (섬기는 분들) -->
-                <section class="admin-section">
+                <section class="admin-section" id="members">
                     <h2 class="section-title">섬기는 분들 관리</h2>
 
                     <div class="admin-card">
@@ -980,7 +1005,7 @@
             </div>
         </div>
     </div>
-    <script src="/static/js/admin.js?v=12"></script>
+    <script src="/static/js/admin.js?v=13"></script>
     <script>
     function previewNewsImages(input) {
         const preview = document.getElementById('news-image-preview');

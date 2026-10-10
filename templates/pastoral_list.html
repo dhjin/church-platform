@@ -341,7 +341,7 @@
                     <li><a href="{{ lp }}/#schedule-news">{{ t.nav_news }}</a></li>
                     <li><a href="{{ lp }}/#contact">{{ t.nav_location }}</a></li>
                     {% if user %}
-                    {% if user.role == 'admin' %}
+                    {% if user.role in ['owner', 'admin', 'manager'] %}
                     <li><a href="/admin">{{ t.nav_admin }}</a></li>
                     {% endif %}
                     <li><a href="/logout">{{ t.nav_logout }}</a></li>
