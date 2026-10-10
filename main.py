@@ -2,6 +2,7 @@ from fastapi import FastAPI, Request, Depends, HTTPException, Form, UploadFile, 
 from fastapi.templating import Jinja2Templates
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse
+from fastapi.concurrency import run_in_threadpool
 import psycopg2
 import psycopg2.errors
 from datetime import datetime, timedelta
@@ -26,11 +27,21 @@ from billing import config as billing_config
 from billing import service as billing
 from billing.providers import BillingProviderError, configured_providers
 import site_config
+import access_log
 
 load_dotenv()
 
 app = FastAPI(title="Church Platform")
 app.add_middleware(TenantMiddleware)
+
+
+@app.middleware("http")
+async def access_log_middleware(request: Request, call_next):
+    # TenantMiddleware 바깥에서 돌지만 request.state 는 같은 scope 를 쓰므로 응답 뒤에는 tenant 가 채워져 있다.
+    response = await call_next(request)
+    if getattr(request.state, "tenant", None) and access_log.should_log_page(request.method, request.url.path):
+        await run_in_threadpool(access_log.record, request, "page", get_current_user(request), response.status_code)
+    return response
 
 app.mount("/static", StaticFiles(directory="static"), name="static")
 app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
@@ -377,6 +388,11 @@ def init_db():
 @app.on_event("startup")
 async def startup_event():
     init_db()
+    conn = get_conn()
+    try:
+        access_log.purge_old(conn)
+    finally:
+        conn.close()
 
 
 # ─── Tenant registration ──────────────────────────────────────────────────────
@@ -991,6 +1007,7 @@ async def _login_post(request: Request, lang: str, username: str, password: str)
     if not row:
         cur.close()
         conn.close()
+        access_log.record(request, "login_fail", status=200, username=username[:100])
         return templates.TemplateResponse(request, "login.html", {"error": t["login_error"], "t": t, "lp": lp})
 
     stored = row[2]
@@ -1004,6 +1021,7 @@ async def _login_post(request: Request, lang: str, username: str, password: str)
     if not valid:
         cur.close()
         conn.close()
+        access_log.record(request, "login_fail", status=200, username=username[:100])
         return templates.TemplateResponse(request, "login.html", {"error": t["login_error"], "t": t, "lp": lp})
 
     token = secrets.token_urlsafe(32)
@@ -1012,6 +1030,7 @@ async def _login_post(request: Request, lang: str, username: str, password: str)
                        "church_name": tenant_info.get("church_name", "")}
     cur.close()
     conn.close()
+    access_log.record(request, "login", sessions[token], 303)
     response = RedirectResponse(url="/admin" if row[3] in MANAGER_ROLES else f"{lp}/", status_code=303)
     response.set_cookie(key="session_token", value=token, httponly=True, samesite="lax")
     return response
@@ -1035,6 +1054,9 @@ async def login_en(request: Request, username: str = Form(...), password: str = 
 async def logout(request: Request):
     token = request.cookies.get("session_token")
     if token and token in sessions:
+        user = get_current_user(request)
+        if user:
+            access_log.record(request, "logout", user, 303)
         del sessions[token]
     resp = RedirectResponse(url="/", status_code=303)
     resp.delete_cookie("session_token")
@@ -2380,6 +2402,31 @@ SUBSCRIPTION_STATUS_LABELS = {
 
 def _billing_redirect(**params) -> RedirectResponse:
     return RedirectResponse(url="/admin/billing?" + urlencode(params), status_code=303)
+
+
+# ─── Admin: Access logs ──────────────────────────────────────────────────────
+
+@app.get("/admin/access-logs", response_class=HTMLResponse)
+async def access_logs_page(
+    request: Request, user: dict = Depends(require_admin), page: int = 1, event: str = "",
+    q: str = "", members_only: int = 0, show_bots: int = 0, date: str = "",
+):
+    tenant_id = user["tenant_id"]
+    conn = get_conn()
+    try:
+        summary = access_log.summary(conn, tenant_id)
+        members = access_log.member_activity(conn, tenant_id)
+        result = access_log.search(conn, tenant_id, event=event, q=q, members_only=bool(members_only),
+                                   show_bots=bool(show_bots), date=date, page=page)
+    finally:
+        conn.close()
+    filters = {"event": event, "q": q, "members_only": members_only, "show_bots": show_bots, "date": date}
+    query = urlencode({k: v for k, v in filters.items() if v})
+    return templates.TemplateResponse(request, "access_logs.html", {
+        "user": user, "summary": summary, "members": members, **result,
+        "filters": filters, "query": query, "events": access_log.EVENTS,
+        "retention_days": access_log.RETENTION_DAYS,
+    })
 
 
 @app.get("/admin/billing", response_class=HTMLResponse)

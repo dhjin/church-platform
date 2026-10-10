@@ -51,7 +51,7 @@
 }
 
 .btn-home:hover {
-    background-color: var(--secondary-color);
+    background-color: var(--accent-color);
 }
 
 .admin-container {
@@ -127,7 +127,7 @@
 
 .btn-primary {
     padding: 12px 24px;
-    background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+    background: var(--primary-color);
     color: white;
     border: none;
     border-radius: 8px;

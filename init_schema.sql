@@ -334,3 +334,22 @@ CREATE TABLE IF NOT EXISTS custom_requests (
     created_at TIMESTAMP DEFAULT NOW(),
     updated_at TIMESTAMP DEFAULT NOW()
 );
+
+-- 교회 사이트 접속 로그(관리자 화면에서 누가 언제 들어왔는지 확인). created_at 은 한국시간.
+-- event: page / login / login_fail / logout
+CREATE TABLE IF NOT EXISTS access_logs (
+    id BIGSERIAL PRIMARY KEY,
+    tenant_id INTEGER NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+    created_at TIMESTAMP NOT NULL,
+    event TEXT NOT NULL,
+    user_id INTEGER,
+    username TEXT,
+    ip TEXT,
+    method TEXT,
+    path TEXT,
+    status INTEGER,
+    user_agent TEXT,
+    is_bot BOOLEAN NOT NULL DEFAULT FALSE
+);
+CREATE INDEX IF NOT EXISTS idx_access_logs_tenant_time ON access_logs(tenant_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_access_logs_tenant_user ON access_logs(tenant_id, user_id);

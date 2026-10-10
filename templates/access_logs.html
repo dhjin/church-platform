@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="ko">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>접속 로그 - {{ user.church_name }}</title>
+    <link rel="stylesheet" href="/static/css/style.css?v=26">
+    <link rel="stylesheet" href="/static/css/admin.css?v=16">
+    <style>
+        .stat-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; }
+        .stat { background: #fff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 16px; text-align: center; }
+        .stat-num { font-size: 1.8rem; font-weight: 700; color: #1e3a5f; }
+        .stat-label { font-size: .85rem; color: #64748b; }
+        .hint { font-size: .82rem; color: #64748b; margin: 4px 0 10px; }
+        .scroll { overflow-x: auto; }
+        .log-table { width: 100%; border-collapse: collapse; font-size: .88rem; }
+        .log-table th, .log-table td { padding: 8px; border-bottom: 1px solid #e2e8f0; text-align: left; vertical-align: top; }
+        .log-table th { background: #f8fafc; color: #334155; font-weight: 600; white-space: nowrap; }
+        .nowrap { white-space: nowrap; }
+        .path { word-break: break-all; max-width: 260px; }
+        .ua { max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #94a3b8; }
+        .pill { display: inline-block; border-radius: 10px; padding: 2px 8px; font-size: .75rem; font-weight: 600; color: #fff; white-space: nowrap; }
+        .pill.green { background: #22c55e; } .pill.gray { background: #94a3b8; }
+        .pill.amber { background: #f59e0b; } .pill.navy { background: #1e3a5f; }
+        .filter { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+        .filter select, .filter input[type=text], .filter input[type=date] { padding: 8px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: .88rem; }
+        .filter label { font-size: .88rem; color: #334155; display: flex; gap: 4px; align-items: center; }
+        .filter button { padding: 8px 18px; border: none; border-radius: 6px; background: #1e3a5f; color: #fff; font-weight: 600; cursor: pointer; }
+        .filter a { font-size: .85rem; color: #475569; }
+        .pager { display: flex; gap: 12px; justify-content: center; align-items: center; margin-top: 14px; font-size: .9rem; }
+        .pager a { padding: 6px 14px; border: 1px solid #cbd5e1; border-radius: 6px; color: #334155; text-decoration: none; }
+    </style>
+</head>
+
+<body>
+    <div class="admin-wrapper">
+        <header class="admin-header">
+            <div class="container">
+                <div class="admin-nav">
+                    <h1>📊 접속 로그</h1>
+                    <div class="admin-user-info">
+                        <span>👤 {{ user.username }}</span>
+                        <a href="/admin" class="btn-home">관리자 홈</a>
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <div class="admin-container">
+            <div class="container">
+                <section class="admin-section">
+                    <h2 class="section-title">오늘 현황</h2>
+                    <div class="stat-grid">
+                        <div class="stat"><div class="stat-num">{{ summary.visitors }}</div><div class="stat-label">방문자 (IP 기준)</div></div>
+                        <div class="stat"><div class="stat-num">{{ summary.members }}</div><div class="stat-label">접속한 회원</div></div>
+                        <div class="stat"><div class="stat-num">{{ summary.views }}</div><div class="stat-label">페이지 조회</div></div>
+                        <div class="stat"><div class="stat-num">{{ summary.login_fails }}</div><div class="stat-label">로그인 실패</div></div>
+                    </div>
+                </section>
+
+                <section class="admin-section">
+                    <h2 class="section-title">회원별 최근 접속</h2>
+                    <div class="admin-card">
+                        <p class="hint">가입한 모든 회원의 마지막 접속 시각입니다. 접속 기록이 없는 회원은 아래쪽에 표시됩니다.</p>
+                        <div class="scroll">
+                            <table class="log-table">
+                                <thead><tr><th>이름</th><th>아이디</th><th>마지막 접속</th><th>로그인</th><th>조회</th><th>가입일</th></tr></thead>
+                                <tbody>
+                                    {% for m in members %}
+                                    <tr>
+                                        <td>{{ m.name or '-' }}{% if m.role in ['owner', 'admin', 'manager'] %} <span class="pill navy">{{ m.role }}</span>{% endif %}</td>
+                                        <td><a href="?q={{ m.username | urlencode }}&members_only=1">{{ m.username }}</a></td>
+                                        <td class="nowrap">
+                                            {% if m.last_seen %}
+                                            {{ m.last_seen.strftime('%Y-%m-%d %H:%M') }}
+                                            {% if m.days_ago == 0 %}<span class="pill green">오늘</span>
+                                            {% else %}<span class="pill {{ 'amber' if m.days_ago >= 14 else 'gray' }}">{{ m.days_ago }}일 전</span>{% endif %}
+                                            {% else %}<span class="pill amber">기록 없음</span>{% endif %}
+                                        </td>
+                                        <td>{{ m.logins }}</td>
+                                        <td>{{ m.views }}</td>
+                                        <td class="nowrap">{{ m.created_at.strftime('%Y-%m-%d') if m.created_at else '' }}</td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </section>
+
+                <section class="admin-section">
+                    <h2 class="section-title">전체 접속 기록</h2>
+                    <div class="admin-card">
+                        <form method="GET" action="/admin/access-logs" class="filter">
+                            <select name="event">
+                                <option value="">전체 종류</option>
+                                {% for key, label in events.items() %}
+                                <option value="{{ key }}" {% if filters.event == key %}selected{% endif %}>{{ label }}</option>
+                                {% endfor %}
+                            </select>
+                            <input type="date" name="date" value="{{ filters.date }}">
+                            <input type="text" name="q" value="{{ filters.q }}" placeholder="아이디, IP, 경로 검색">
+                            <label><input type="checkbox" name="members_only" value="1" {% if filters.members_only %}checked{% endif %}> 회원만</label>
+                            <label><input type="checkbox" name="show_bots" value="1" {% if filters.show_bots %}checked{% endif %}> 검색봇 포함</label>
+                            <button type="submit">조회</button>
+                            <a href="/admin/access-logs">초기화</a>
+                        </form>
+                        <p class="hint">총 {{ total }}건 · 기록은 {{ retention_days }}일간 보관됩니다 · 한국시간 기준</p>
+
+                        {% if logs %}
+                        <div class="scroll">
+                            <table class="log-table">
+                                <thead><tr><th>시각</th><th>종류</th><th>사용자</th><th>IP</th><th>경로</th><th>기기</th></tr></thead>
+                                <tbody>
+                                    {% for log in logs %}
+                                    <tr>
+                                        <td class="nowrap">{{ log.created_at.strftime('%m-%d %H:%M:%S') }}</td>
+                                        <td class="nowrap">
+                                            {% if log.event == 'login' %}<span class="pill green">로그인</span>
+                                            {% elif log.event == 'login_fail' %}<span class="pill amber">로그인 실패</span>
+                                            {% elif log.event == 'logout' %}<span class="pill gray">로그아웃</span>
+                                            {% else %}조회{% endif %}
+                                        </td>
+                                        <td>{{ log.username or '비회원' }}</td>
+                                        <td class="nowrap"><a href="?q={{ log.ip | urlencode }}">{{ log.ip }}</a></td>
+                                        <td class="path">{{ log.path }}{% if log.status and log.status >= 400 %} <span class="pill amber">{{ log.status }}</span>{% endif %}</td>
+                                        <td class="ua" title="{{ log.user_agent }}">{{ log.user_agent }}</td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                        {% if total_pages > 1 %}
+                        <div class="pager">
+                            {% if page > 1 %}<a href="?{{ query }}{{ '&' if query }}page={{ page - 1 }}">이전</a>{% endif %}
+                            <span>{{ page }} / {{ total_pages }}</span>
+                            {% if page < total_pages %}<a href="?{{ query }}{{ '&' if query }}page={{ page + 1 }}">다음</a>{% endif %}
+                        </div>
+                        {% endif %}
+                        {% else %}
+                        <p class="empty-message">조건에 맞는 접속 기록이 없습니다.</p>
+                        {% endif %}
+                    </div>
+                </section>
+            </div>
+        </div>
+    </div>
+</body>
+
+</html>
