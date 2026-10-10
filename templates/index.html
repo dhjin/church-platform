@@ -262,7 +262,7 @@
                     </div>
                     <div class="consolidated-schedule">
                         <div class="schedule-list">
-                            {% for row in (site.worship_schedule if site else []) %}
+                            {% for row in ((site.worship_schedule_en if t.lang == 'en' and site.worship_schedule_en else site.worship_schedule) if site else []) %}
                             <div class="schedule-row">
                                 <span class="schedule-name">{{ row.name }}</span>
                                 <span class="schedule-time">{{ row.time }}</span>
@@ -322,11 +322,11 @@
                     <div id="kakaoMap" style="width:100%;height:420px;border-radius:12px;overflow:hidden;"></div>
                 </div>
                 <div class="map-buttons">
-                    <a href="https://map.naver.com/p/search/{{ t.footer_address | urlencode }}" target="_blank"
+                    <a href="https://map.naver.com/p/search/{{ t.map_address | urlencode }}" target="_blank"
                         class="btn btn-naver">
                         {{ t.naver_map }}
                     </a>
-                    <a href="https://map.kakao.com/link/search/{{ t.footer_address | urlencode }}" target="_blank"
+                    <a href="https://map.kakao.com/link/search/{{ t.map_address | urlencode }}" target="_blank"
                         class="btn btn-kakao">
                         {{ t.kakao_map }}
                     </a>
@@ -379,14 +379,14 @@
             if (typeof kakao !== 'undefined' && kakao.maps) {
                 kakao.maps.load(function () {
                     var container = document.getElementById('kakaoMap');
-                    if (!container || !{{ t.footer_address | tojson }}) return;
+                    if (!container || !{{ t.map_address | tojson }}) return;
                     var options = {
                         center: new kakao.maps.LatLng(36.3204, 127.3397),
                         level: 4
                     };
                     var map = new kakao.maps.Map(container, options);
                     var geocoder = new kakao.maps.services.Geocoder();
-                    geocoder.addressSearch({{ t.footer_address | tojson }}, function (result, status) {
+                    geocoder.addressSearch({{ t.map_address | tojson }}, function (result, status) {
                         if (status === kakao.maps.services.Status.OK) {
                             var coords = new kakao.maps.LatLng(result[0].y, result[0].x);
                             var marker = new kakao.maps.Marker({ map: map, position: coords });

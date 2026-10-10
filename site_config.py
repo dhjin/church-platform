@@ -54,6 +54,7 @@ THEME_PRESETS = {
 HERO_STYLES = {"gradient": "그라데이션", "solid": "단색", "light": "밝은 배경"}
 
 FONTS = {
+    "system": {"label": "기기 기본 글꼴 (웹폰트 없음)", "family": "-apple-system, BlinkMacSystemFont, 'Segoe UI', 'Noto Sans KR', 'Malgun Gothic', sans-serif", "google": ""},
     "noto-sans": {"label": "본고딕 (기본)", "family": "'Noto Sans KR', sans-serif", "google": "Noto+Sans+KR:wght@400;500;700"},
     "noto-serif": {"label": "본명조 (차분한)", "family": "'Noto Serif KR', serif", "google": "Noto+Serif+KR:wght@400;600;700"},
     "nanum-myeongjo": {"label": "나눔명조 (전통적인)", "family": "'Nanum Myeongjo', serif", "google": "Nanum+Myeongjo:wght@400;700;800"},
@@ -80,6 +81,19 @@ TEXT_LIMITS = {
     "concept": 600,
 }
 
+# 기본 정보 화면에서 관리자가 직접 넣는 문구(AI 디자인 초안은 건드리지 않는다)
+PROFILE_TEXT_LIMITS = {
+    "pastor_title": 20,     # 담임목사 이름 뒤 호칭(예: 목사). 비우면 이름만 표시
+    "location_short": 80,   # 홈 환영 카드의 '위치'(비우면 주소 전체)
+    "email": 100,           # 하단에 표시할 교회 이메일
+}
+
+# 영어 페이지(/en/)에서 한국어 값 대신 쓸 문구. 비어 있으면 한국어 값을 그대로 쓴다.
+EN_TEXT_LIMITS = {
+    "church_name": 60, "pastor_name": 40, "denomination": 60, "address": 200, "location_short": 80,
+    "hero_title": 80, "hero_subtitle": 120, "hero_info": 200,
+}
+
 MAX_SCHEDULE_ROWS = 10
 MAX_ABOUT_IMAGES = 4
 
@@ -94,6 +108,9 @@ DEFAULT_CONFIG = {
         "mission_title": "교회의 사명",
         "footer_blessing": "하나님의 사랑과 은혜가 함께 하시기를 기도합니다.",
         "concept": "",
+        "pastor_title": "",
+        "location_short": "",
+        "email": "",
     },
     "home_sections": ["intro", "videos", "schedule_news", "contact"],
     "worship_schedule": [
@@ -103,6 +120,8 @@ DEFAULT_CONFIG = {
     ],
     "logo_path": "",
     "about_images": [],
+    "mission_image": "",
+    "en": {"texts": {}, "worship_schedule": []},
 }
 
 # AI가 설정안을 만들 때 쓰는 JSON 스키마(구조화 출력). 이미지 경로는 AI가 정하지 않는다.
@@ -153,6 +172,17 @@ def _clean_text(value, limit: int) -> str:
     return value.strip()[:limit]
 
 
+def _clean_schedule(schedule: list) -> list:
+    rows = []
+    for row in schedule[:MAX_SCHEDULE_ROWS]:
+        if not isinstance(row, dict):
+            continue
+        name, time = _clean_text(row.get("name"), 40), _clean_text(row.get("time"), 40)
+        if name:
+            rows.append({"name": name, "time": time})
+    return rows
+
+
 def normalize_config(raw: Optional[dict], base: Optional[dict] = None) -> dict:
     """raw 를 base(기본값: DEFAULT_CONFIG) 위에 덮어쓰고, 허용되지 않은 값은 버린다."""
     cfg = copy.deepcopy(base if base is not None else DEFAULT_CONFIG)
@@ -173,7 +203,7 @@ def normalize_config(raw: Optional[dict], base: Optional[dict] = None) -> dict:
 
     texts = raw.get("texts")
     if isinstance(texts, dict):
-        for key, limit in TEXT_LIMITS.items():
+        for key, limit in {**TEXT_LIMITS, **PROFILE_TEXT_LIMITS}.items():
             if key in texts:
                 cfg["texts"][key] = _clean_text(texts[key], limit)
     if "concept" in raw:
@@ -189,18 +219,22 @@ def normalize_config(raw: Optional[dict], base: Optional[dict] = None) -> dict:
 
     schedule = raw.get("worship_schedule")
     if isinstance(schedule, list):
-        rows = []
-        for row in schedule[:MAX_SCHEDULE_ROWS]:
-            if not isinstance(row, dict):
-                continue
-            name, time = _clean_text(row.get("name"), 40), _clean_text(row.get("time"), 40)
-            if name:
-                rows.append({"name": name, "time": time})
-        cfg["worship_schedule"] = rows
+        cfg["worship_schedule"] = _clean_schedule(schedule)
+
+    en = raw.get("en")
+    if isinstance(en, dict):
+        if isinstance(en.get("texts"), dict):
+            cfg["en"]["texts"] = {k: _clean_text(v, EN_TEXT_LIMITS[k]) for k, v in en["texts"].items()
+                                  if k in EN_TEXT_LIMITS and _clean_text(v, EN_TEXT_LIMITS[k])}
+        if isinstance(en.get("worship_schedule"), list):
+            cfg["en"]["worship_schedule"] = _clean_schedule(en["worship_schedule"])
 
     if "logo_path" in raw:
         logo = raw["logo_path"]
         cfg["logo_path"] = logo if isinstance(logo, str) and _UPLOAD_PATH.match(logo) else ""
+    if "mission_image" in raw:
+        image = raw["mission_image"]
+        cfg["mission_image"] = image if isinstance(image, str) and _UPLOAD_PATH.match(image) else ""
     images = raw.get("about_images")
     if isinstance(images, list):
         cfg["about_images"] = [p for p in images if isinstance(p, str) and _UPLOAD_PATH.match(p)][:MAX_ABOUT_IMAGES]
@@ -225,21 +259,31 @@ def _mix(hex_color: str, other: str, ratio: float) -> str:
     return "#" + "".join(f"{round(x + (y - x) * ratio):02x}" for x, y in zip(a, b))
 
 
+# static/css/style.css :root 의 기본 색. 이 값이면 style.css 의 손으로 고른 명암을 그대로 둔다.
+_STYLE_CSS_PRIMARY = "#1e3a5f"
+_STYLE_CSS_ACCENT = "#f4a261"
+
+
 def theme_css(cfg: dict) -> str:
     """style.css 의 CSS 변수를 덮어쓰는 :root 블록. 값은 normalize_config 를 거친 hex 뿐이다."""
     theme = cfg["theme"]
     primary, accent = theme["primary"], theme["accent"]
     font = FONTS.get(theme["font"], FONTS["noto-sans"])["family"]
+    if primary == _STYLE_CSS_PRIMARY:
+        primary_vars = ""  # style.css 원래 색(남색 계열)을 그대로 쓴다
+    else:
+        primary_vars = (f"--primary-color:{primary};"
+                        f"--primary-light:{_mix(primary, '#ffffff', 0.2)};"
+                        f"--primary-lighter:{_mix(primary, '#ffffff', 0.45)};"
+                        f"--primary-dark:{_mix(primary, '#000000', 0.3)};")
+    if accent == _STYLE_CSS_ACCENT:
+        accent_vars = ""
+    else:
+        accent_vars = (f"--accent-color:{accent};"
+                       f"--accent-hover:{_mix(accent, '#000000', 0.15)};"
+                       f"--accent-light:{_mix(accent, '#ffffff', 0.55)};")
     return (
-        ":root{"
-        f"--primary-color:{primary};"
-        f"--primary-light:{_mix(primary, '#ffffff', 0.2)};"
-        f"--primary-lighter:{_mix(primary, '#ffffff', 0.45)};"
-        f"--primary-dark:{_mix(primary, '#000000', 0.3)};"
-        f"--accent-color:{accent};"
-        f"--accent-hover:{_mix(accent, '#000000', 0.15)};"
-        f"--accent-light:{_mix(accent, '#ffffff', 0.55)};"
-        "}"
+        ":root{" + primary_vars + accent_vars + "}"
         f"body{{font-family:{font},-apple-system,BlinkMacSystemFont,'Malgun Gothic',sans-serif}}"
         + _HERO_CSS.get(theme.get("hero_style", "gradient"), "")
     )
@@ -256,6 +300,8 @@ _HERO_CSS = {
 
 def font_href(cfg: dict) -> str:
     font = FONTS.get(cfg["theme"]["font"], FONTS["noto-sans"])
+    if not font["google"]:
+        return ""
     return f"https://fonts.googleapis.com/css2?family={font['google']}&display=swap"
 
 

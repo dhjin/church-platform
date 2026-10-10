@@ -148,6 +148,11 @@
                                 <div class="form-group"><label>전화번호</label><input type="text" name="phone" value="{{ tenant.phone }}" maxlength="40"></div>
                             </div>
                             <div class="form-group"><label>주소</label><input type="text" name="address" value="{{ tenant.address }}" maxlength="200" placeholder="지도에 표시될 도로명 주소"></div>
+                            <div class="grid-2">
+                                <div class="form-group"><label>담임목사 호칭 (선택)</label><input type="text" name="pastor_title" value="{{ cfg.texts.pastor_title }}" maxlength="20" placeholder="예: 목사"></div>
+                                <div class="form-group"><label>홈 화면 위치 표시 (선택)</label><input type="text" name="location_short" value="{{ cfg.texts.location_short }}" maxlength="80" placeholder="비우면 주소 전체"></div>
+                                <div class="form-group"><label>교회 이메일 (선택)</label><input type="email" name="email" value="{{ cfg.texts.email }}" maxlength="100"></div>
+                            </div>
                             <button type="submit" class="btn btn-primary">기본 정보 저장</button>
                         </form>
                     </div>
@@ -221,6 +226,13 @@
                                         <label><img src="{{ img }}" alt=""><span><input type="checkbox" name="remove_about" value="{{ img }}"> 삭제</span></label>
                                         {% endfor %}
                                     </div>
+                                    {% endif %}
+                                </div>
+                                <div class="form-group">
+                                    <label>교회소개 사명 옆 이미지 (1장)</label>
+                                    <input type="file" name="mission_image" accept="image/*">
+                                    {% if cfg.mission_image %}
+                                    <div class="thumbs"><label><img src="{{ cfg.mission_image }}" alt=""><span><input type="checkbox" name="remove_mission" value="1"> 삭제</span></label></div>
                                     {% endif %}
                                 </div>
                             </div>

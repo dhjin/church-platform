@@ -5,27 +5,29 @@ from database import get_conn
 
 class TenantMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
-        host = request.headers.get("host", "").split(":")[0]
+        host = request.headers.get("host", "").split(":")[0].lower()
         parts = host.split(".")
+        # 교회 자체 도메인(tenant_domains) → 해당 교회
         # slug.our-church.kr  → 3+ parts, first part is slug
         # our-church.kr / localhost / IP → no tenant
-        if len(parts) >= 3:
-            slug = parts[0]
-            tenant = _lookup_tenant(slug)
-        else:
-            tenant = None
+        tenant = _lookup_tenant(host, parts[0] if len(parts) >= 3 else None) if host else None
 
         request.state.tenant = tenant
         return await call_next(request)
 
 
-def _lookup_tenant(slug: str):
+def _lookup_tenant(host: str, slug):
     try:
         conn = get_conn()
         cur = conn.cursor()
         cur.execute(
-            "SELECT id, slug, church_name, pastor_name, plan, status, phone, address FROM tenants WHERE slug=%s AND status != 'suspended'",
-            (slug,),
+            """SELECT t.id, t.slug, t.church_name, t.pastor_name, t.plan, t.status, t.phone, t.address
+               FROM tenants t
+               LEFT JOIN tenant_domains d ON d.tenant_id = t.id AND d.domain = %s
+               WHERE t.status != 'suspended' AND (d.domain IS NOT NULL OR t.slug = %s)
+               ORDER BY d.domain IS NULL
+               LIMIT 1""",
+            (host, slug),
         )
         row = cur.fetchone()
         cur.close()

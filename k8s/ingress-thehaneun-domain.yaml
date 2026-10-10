@@ -1,0 +1,39 @@
+# 더하는교회 자체 도메인 → church-platform (더하는교회 테넌트). 전환할 때만 apply 한다.
+# 전환 전 확인:
+#   1. scripts/import_church_website.py 로 더하는교회 데이터를 옮겼고 tenant_domains 에 두 도메인이 들어 있다.
+#   2. 지금 thechurch-plus.org 를 church-website 로 보내는 라우팅(인그레스/터널)을 이 파일과 동시에 내린다.
+#   3. church-platform-origin-tls 인증서가 thechurch-plus.org(apex) 를 포함한다.
+# 되돌리기: kubectl delete -f k8s/ingress-thehaneun-domain.yaml 후 church-website 라우팅을 다시 올린다.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: church-platform-thehaneun
+  namespace: church-platform
+spec:
+  ingressClassName: traefik
+  rules:
+  - host: thechurch-plus.org
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: church-platform
+            port:
+              number: 80
+  - host: www.thechurch-plus.org
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: church-platform
+            port:
+              number: 80
+  tls:
+  - hosts:
+    - thechurch-plus.org
+    - www.thechurch-plus.org
+    secretName: church-platform-origin-tls

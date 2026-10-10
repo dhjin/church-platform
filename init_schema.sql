@@ -353,3 +353,11 @@ CREATE TABLE IF NOT EXISTS access_logs (
 );
 CREATE INDEX IF NOT EXISTS idx_access_logs_tenant_time ON access_logs(tenant_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_access_logs_tenant_user ON access_logs(tenant_id, user_id);
+
+-- 교회 자체 도메인(예: thechurch-plus.org, www.thechurch-plus.org → 더하는교회). 소문자, 포트 없이 저장.
+CREATE TABLE IF NOT EXISTS tenant_domains (
+    domain TEXT PRIMARY KEY,
+    tenant_id INTEGER NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+    created_at TIMESTAMP DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_tenant_domains_tenant ON tenant_domains(tenant_id);

@@ -16,6 +16,7 @@ import os
 from typing import Optional, List
 from urllib.parse import urlencode
 from pydantic import BaseModel
+from markupsafe import escape
 from dotenv import load_dotenv
 
 from elasticsearch import Elasticsearch
@@ -165,7 +166,7 @@ TRANSLATIONS = {
         "morning_worship": "Morning Worship", "morning_time": "7:00 AM",
         "news_col_num": "No.", "news_col_title": "Title", "news_col_date": "Date", "news_col_views": "Views",
         "contact_title": "Location & Directions",
-        "naver_map": "Get Directions (Naver)", "kakao_map": "Get Directions (Kakao)",
+        "naver_map": "Get Directions (Naver Map)", "kakao_map": "Get Directions (Kakao Map)",
         "footer_address_label": "Address", "footer_address": "", "footer_tel": "",
         "footer_copyright": "&copy; 2026. All rights reserved.",
         "footer_blessing": "May God's love and grace be with you.",
@@ -247,14 +248,34 @@ def get_t(lang: str = "ko", request: Optional[Request] = None) -> dict:
         return t
     cfg = current_site_config(request)
     texts = cfg["texts"]
-    pastor = tenant.get("pastor_name") or ""
-    pastor_title = ("Senior Pastor " if lang == "en" else "담임목사 ") + pastor if pastor else ""
+    en = cfg["en"]["texts"] if lang == "en" else {}
+    pastor = en.get("pastor_name") or tenant.get("pastor_name") or ""
+    phone, email = tenant.get("phone", ""), texts["email"]
+    address = en.get("address") or tenant.get("address", "")
+    church_name = en.get("church_name") or tenant["church_name"]
+    church = str(escape(church_name))
+    if lang == "en":
+        pastor_short = f"Rev. {pastor}" if pastor and texts["pastor_title"] else pastor
+        t.update({
+            "senior_pastor": f"Senior Pastor: {pastor_short}" if pastor else "",
+            "pastor_label": f"Senior Pastor: {pastor}" if pastor else "",
+            "footer_tel": f"Tel: {phone}" if phone else "", "footer_phone": f"Phone: {phone}" if phone else "",
+            "footer_email": f"Email: {email}" if email else "",
+        })
+    else:
+        pastor_short = f"{pastor} {texts['pastor_title']}".strip() if pastor else ""
+        t.update({
+            "senior_pastor": f"교회대표: {pastor_short}" if pastor else "",
+            "pastor_label": f"담임목사: {pastor}" if pastor else "",
+            "footer_tel": f"Tel: {phone}" if phone else "", "footer_phone": f"전화: {phone}" if phone else "",
+            "footer_email": f"이메일: {email}" if email else "",
+        })
     t.update({
-        "church_name": tenant["church_name"], "church_name_full": tenant["church_name"],
-        "denomination": texts["denomination"],
-        "senior_pastor": pastor_title, "senior_pastor_short": pastor, "pastor_label": pastor_title,
-        "footer_address": tenant.get("address", ""), "info_location_val": tenant.get("address", ""),
-        "footer_tel": tenant.get("phone", ""), "footer_phone": tenant.get("phone", ""),
+        "church_name": church_name, "church_name_full": church_name,
+        "denomination": en.get("denomination") or texts["denomination"], "senior_pastor_short": pastor_short,
+        "footer_address": address, "map_address": tenant.get("address", ""),
+        "info_location_val": (en.get("location_short") if lang == "en" else texts["location_short"]) or address,
+        "footer_copyright": f"&copy; 2026 {church}. All rights reserved.",
     })
     if lang == "ko":
         t.update({
@@ -262,6 +283,8 @@ def get_t(lang: str = "ko", request: Optional[Request] = None) -> dict:
             "hero_info": texts["hero_info"], "welcome_title": texts["welcome_title"],
             "mission_5_title": texts["mission_title"], "footer_blessing": texts["footer_blessing"],
         })
+    else:
+        t.update({k: en[k] for k in ("hero_title", "hero_subtitle", "hero_info") if en.get(k)})
     return t
 
 
@@ -281,7 +304,9 @@ def site_context(request: Request) -> dict:
         "page_url": base + request.url.path,
         "home_sections": cfg["home_sections"],
         "worship_schedule": cfg["worship_schedule"],
+        "worship_schedule_en": cfg["en"]["worship_schedule"],
         "about_images": cfg["about_images"],
+        "mission_image": cfg["mission_image"],
         "preview": getattr(request.state, "site_preview", None),
     }}
 
@@ -1845,6 +1870,7 @@ async def site_design_page(request: Request, msg: str = "", error: str = "", ai:
 async def site_update_info(
     request: Request, church_name: str = Form(...), pastor_name: str = Form(""),
     phone: str = Form(""), address: str = Form(""), denomination: str = Form(""),
+    pastor_title: str = Form(""), location_short: str = Form(""), email: str = Form(""),
     user: dict = Depends(require_admin),
 ):
     tenant_id = user["tenant_id"]
@@ -1862,9 +1888,11 @@ async def site_update_info(
     finally:
         conn.close()
     cfg = site_config.load_active_config(tenant_id)
-    if cfg["texts"]["denomination"] != denomination.strip():
-        cfg = site_config.normalize_config({"texts": {"denomination": denomination}}, base=cfg)
-        site_config.save_version(tenant_id, cfg, "manual", "소속 변경", created_by=user["username"])
+    profile = {"denomination": denomination, "pastor_title": pastor_title,
+               "location_short": location_short, "email": email}
+    updated = site_config.normalize_config({"texts": profile}, base=cfg)
+    if updated["texts"] != cfg["texts"]:
+        site_config.save_version(tenant_id, updated, "manual", "기본 정보 변경", created_by=user["username"])
     return _site_redirect(msg="기본 정보를 저장했습니다.")
 
 
@@ -1917,6 +1945,7 @@ async def site_activate_version(version_id: int, user: dict = Depends(require_ad
 @app.post("/admin/site/images")
 async def site_update_images(
     logo: Optional[UploadFile] = File(None), about_image: Optional[UploadFile] = File(None),
+    mission_image: Optional[UploadFile] = File(None), remove_mission: str = Form(""),
     remove_logo: str = Form(""), remove_about: List[str] = Form(default=[]),
     user: dict = Depends(require_admin),
 ):
@@ -1932,7 +1961,12 @@ async def site_update_images(
         if len(about_images) >= site_config.MAX_ABOUT_IMAGES:
             return _site_redirect(error=f"교회소개 이미지는 최대 {site_config.MAX_ABOUT_IMAGES}장까지 올릴 수 있습니다.")
         about_images.append(new_about)
-    cfg = site_config.normalize_config({"logo_path": logo_path, "about_images": about_images}, base=cfg)
+    mission_path = "" if remove_mission else cfg["mission_image"]
+    new_mission = _save_site_image(tenant_id, mission_image, "mission")
+    if new_mission:
+        mission_path = new_mission
+    cfg = site_config.normalize_config(
+        {"logo_path": logo_path, "about_images": about_images, "mission_image": mission_path}, base=cfg)
     site_config.save_version(tenant_id, cfg, "manual", "이미지 변경", created_by=user["username"])
     return _site_redirect(msg="이미지를 저장했습니다.")
 

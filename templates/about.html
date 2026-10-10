@@ -93,6 +93,11 @@
                         <div class="mission-text">
                             {{ about.mission_content | replace('\n', '<br>') | safe }}
                         </div>
+                        {% if site and site.mission_image %}
+                        <div class="mission-image">
+                            <img src="{{ site.mission_image }}" alt="{{ t.church_name }}">
+                        </div>
+                        {% endif %}
                     </div>
                 </div>
             </div>

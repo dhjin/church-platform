@@ -1,5 +1,7 @@
 {% if site %}
+    {% if site.font_href %}
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="stylesheet" href="{{ site.font_href }}">
+    {% endif %}
     <style>{{ site.theme_css | safe }}</style>
 {% endif %}
