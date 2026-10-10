@@ -2,6 +2,7 @@ from fastapi import FastAPI, Request, Depends, HTTPException, Form, UploadFile, 
 from fastapi.templating import Jinja2Templates
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse
+from fastapi.concurrency import run_in_threadpool
 import psycopg2
 import psycopg2.errors
 from datetime import datetime, timedelta
@@ -15,6 +16,7 @@ import os
 from typing import Optional, List
 from urllib.parse import urlencode
 from pydantic import BaseModel
+from markupsafe import escape
 from dotenv import load_dotenv
 
 from elasticsearch import Elasticsearch
@@ -26,11 +28,21 @@ from billing import config as billing_config
 from billing import service as billing
 from billing.providers import BillingProviderError, configured_providers
 import site_config
+import access_log
 
 load_dotenv()
 
 app = FastAPI(title="Church Platform")
 app.add_middleware(TenantMiddleware)
+
+
+@app.middleware("http")
+async def access_log_middleware(request: Request, call_next):
+    # TenantMiddleware 바깥에서 돌지만 request.state 는 같은 scope 를 쓰므로 응답 뒤에는 tenant 가 채워져 있다.
+    response = await call_next(request)
+    if getattr(request.state, "tenant", None) and access_log.should_log_page(request.method, request.url.path):
+        await run_in_threadpool(access_log.record, request, "page", get_current_user(request), response.status_code)
+    return response
 
 app.mount("/static", StaticFiles(directory="static"), name="static")
 app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
@@ -154,7 +166,7 @@ TRANSLATIONS = {
         "morning_worship": "Morning Worship", "morning_time": "7:00 AM",
         "news_col_num": "No.", "news_col_title": "Title", "news_col_date": "Date", "news_col_views": "Views",
         "contact_title": "Location & Directions",
-        "naver_map": "Get Directions (Naver)", "kakao_map": "Get Directions (Kakao)",
+        "naver_map": "Get Directions (Naver Map)", "kakao_map": "Get Directions (Kakao Map)",
         "footer_address_label": "Address", "footer_address": "", "footer_tel": "",
         "footer_copyright": "&copy; 2026. All rights reserved.",
         "footer_blessing": "May God's love and grace be with you.",
@@ -236,14 +248,34 @@ def get_t(lang: str = "ko", request: Optional[Request] = None) -> dict:
         return t
     cfg = current_site_config(request)
     texts = cfg["texts"]
-    pastor = tenant.get("pastor_name") or ""
-    pastor_title = ("Senior Pastor " if lang == "en" else "담임목사 ") + pastor if pastor else ""
+    en = cfg["en"]["texts"] if lang == "en" else {}
+    pastor = en.get("pastor_name") or tenant.get("pastor_name") or ""
+    phone, email = tenant.get("phone", ""), texts["email"]
+    address = en.get("address") or tenant.get("address", "")
+    church_name = en.get("church_name") or tenant["church_name"]
+    church = str(escape(church_name))
+    if lang == "en":
+        pastor_short = f"Rev. {pastor}" if pastor and texts["pastor_title"] else pastor
+        t.update({
+            "senior_pastor": f"Senior Pastor: {pastor_short}" if pastor else "",
+            "pastor_label": f"Senior Pastor: {pastor}" if pastor else "",
+            "footer_tel": f"Tel: {phone}" if phone else "", "footer_phone": f"Phone: {phone}" if phone else "",
+            "footer_email": f"Email: {email}" if email else "",
+        })
+    else:
+        pastor_short = f"{pastor} {texts['pastor_title']}".strip() if pastor else ""
+        t.update({
+            "senior_pastor": f"교회대표: {pastor_short}" if pastor else "",
+            "pastor_label": f"담임목사: {pastor}" if pastor else "",
+            "footer_tel": f"Tel: {phone}" if phone else "", "footer_phone": f"전화: {phone}" if phone else "",
+            "footer_email": f"이메일: {email}" if email else "",
+        })
     t.update({
-        "church_name": tenant["church_name"], "church_name_full": tenant["church_name"],
-        "denomination": texts["denomination"],
-        "senior_pastor": pastor_title, "senior_pastor_short": pastor, "pastor_label": pastor_title,
-        "footer_address": tenant.get("address", ""), "info_location_val": tenant.get("address", ""),
-        "footer_tel": tenant.get("phone", ""), "footer_phone": tenant.get("phone", ""),
+        "church_name": church_name, "church_name_full": church_name,
+        "denomination": en.get("denomination") or texts["denomination"], "senior_pastor_short": pastor_short,
+        "footer_address": address, "map_address": tenant.get("address", ""),
+        "info_location_val": (en.get("location_short") if lang == "en" else texts["location_short"]) or address,
+        "footer_copyright": f"&copy; 2026 {church}. All rights reserved.",
     })
     if lang == "ko":
         t.update({
@@ -251,6 +283,8 @@ def get_t(lang: str = "ko", request: Optional[Request] = None) -> dict:
             "hero_info": texts["hero_info"], "welcome_title": texts["welcome_title"],
             "mission_5_title": texts["mission_title"], "footer_blessing": texts["footer_blessing"],
         })
+    else:
+        t.update({k: en[k] for k in ("hero_title", "hero_subtitle", "hero_info") if en.get(k)})
     return t
 
 
@@ -270,7 +304,9 @@ def site_context(request: Request) -> dict:
         "page_url": base + request.url.path,
         "home_sections": cfg["home_sections"],
         "worship_schedule": cfg["worship_schedule"],
+        "worship_schedule_en": cfg["en"]["worship_schedule"],
         "about_images": cfg["about_images"],
+        "mission_image": cfg["mission_image"],
         "preview": getattr(request.state, "site_preview", None),
     }}
 
@@ -377,6 +413,11 @@ def init_db():
 @app.on_event("startup")
 async def startup_event():
     init_db()
+    conn = get_conn()
+    try:
+        access_log.purge_old(conn)
+    finally:
+        conn.close()
 
 
 # ─── Tenant registration ──────────────────────────────────────────────────────
@@ -991,6 +1032,7 @@ async def _login_post(request: Request, lang: str, username: str, password: str)
     if not row:
         cur.close()
         conn.close()
+        access_log.record(request, "login_fail", status=200, username=username[:100])
         return templates.TemplateResponse(request, "login.html", {"error": t["login_error"], "t": t, "lp": lp})
 
     stored = row[2]
@@ -1004,6 +1046,7 @@ async def _login_post(request: Request, lang: str, username: str, password: str)
     if not valid:
         cur.close()
         conn.close()
+        access_log.record(request, "login_fail", status=200, username=username[:100])
         return templates.TemplateResponse(request, "login.html", {"error": t["login_error"], "t": t, "lp": lp})
 
     token = secrets.token_urlsafe(32)
@@ -1012,6 +1055,7 @@ async def _login_post(request: Request, lang: str, username: str, password: str)
                        "church_name": tenant_info.get("church_name", "")}
     cur.close()
     conn.close()
+    access_log.record(request, "login", sessions[token], 303)
     response = RedirectResponse(url="/admin" if row[3] in MANAGER_ROLES else f"{lp}/", status_code=303)
     response.set_cookie(key="session_token", value=token, httponly=True, samesite="lax")
     return response
@@ -1035,6 +1079,9 @@ async def login_en(request: Request, username: str = Form(...), password: str = 
 async def logout(request: Request):
     token = request.cookies.get("session_token")
     if token and token in sessions:
+        user = get_current_user(request)
+        if user:
+            access_log.record(request, "logout", user, 303)
         del sessions[token]
     resp = RedirectResponse(url="/", status_code=303)
     resp.delete_cookie("session_token")
@@ -1823,6 +1870,7 @@ async def site_design_page(request: Request, msg: str = "", error: str = "", ai:
 async def site_update_info(
     request: Request, church_name: str = Form(...), pastor_name: str = Form(""),
     phone: str = Form(""), address: str = Form(""), denomination: str = Form(""),
+    pastor_title: str = Form(""), location_short: str = Form(""), email: str = Form(""),
     user: dict = Depends(require_admin),
 ):
     tenant_id = user["tenant_id"]
@@ -1840,9 +1888,11 @@ async def site_update_info(
     finally:
         conn.close()
     cfg = site_config.load_active_config(tenant_id)
-    if cfg["texts"]["denomination"] != denomination.strip():
-        cfg = site_config.normalize_config({"texts": {"denomination": denomination}}, base=cfg)
-        site_config.save_version(tenant_id, cfg, "manual", "소속 변경", created_by=user["username"])
+    profile = {"denomination": denomination, "pastor_title": pastor_title,
+               "location_short": location_short, "email": email}
+    updated = site_config.normalize_config({"texts": profile}, base=cfg)
+    if updated["texts"] != cfg["texts"]:
+        site_config.save_version(tenant_id, updated, "manual", "기본 정보 변경", created_by=user["username"])
     return _site_redirect(msg="기본 정보를 저장했습니다.")
 
 
@@ -1895,6 +1945,7 @@ async def site_activate_version(version_id: int, user: dict = Depends(require_ad
 @app.post("/admin/site/images")
 async def site_update_images(
     logo: Optional[UploadFile] = File(None), about_image: Optional[UploadFile] = File(None),
+    mission_image: Optional[UploadFile] = File(None), remove_mission: str = Form(""),
     remove_logo: str = Form(""), remove_about: List[str] = Form(default=[]),
     user: dict = Depends(require_admin),
 ):
@@ -1910,7 +1961,12 @@ async def site_update_images(
         if len(about_images) >= site_config.MAX_ABOUT_IMAGES:
             return _site_redirect(error=f"교회소개 이미지는 최대 {site_config.MAX_ABOUT_IMAGES}장까지 올릴 수 있습니다.")
         about_images.append(new_about)
-    cfg = site_config.normalize_config({"logo_path": logo_path, "about_images": about_images}, base=cfg)
+    mission_path = "" if remove_mission else cfg["mission_image"]
+    new_mission = _save_site_image(tenant_id, mission_image, "mission")
+    if new_mission:
+        mission_path = new_mission
+    cfg = site_config.normalize_config(
+        {"logo_path": logo_path, "about_images": about_images, "mission_image": mission_path}, base=cfg)
     site_config.save_version(tenant_id, cfg, "manual", "이미지 변경", created_by=user["username"])
     return _site_redirect(msg="이미지를 저장했습니다.")
 
@@ -2380,6 +2436,31 @@ SUBSCRIPTION_STATUS_LABELS = {
 
 def _billing_redirect(**params) -> RedirectResponse:
     return RedirectResponse(url="/admin/billing?" + urlencode(params), status_code=303)
+
+
+# ─── Admin: Access logs ──────────────────────────────────────────────────────
+
+@app.get("/admin/access-logs", response_class=HTMLResponse)
+async def access_logs_page(
+    request: Request, user: dict = Depends(require_admin), page: int = 1, event: str = "",
+    q: str = "", members_only: int = 0, show_bots: int = 0, date: str = "",
+):
+    tenant_id = user["tenant_id"]
+    conn = get_conn()
+    try:
+        summary = access_log.summary(conn, tenant_id)
+        members = access_log.member_activity(conn, tenant_id)
+        result = access_log.search(conn, tenant_id, event=event, q=q, members_only=bool(members_only),
+                                   show_bots=bool(show_bots), date=date, page=page)
+    finally:
+        conn.close()
+    filters = {"event": event, "q": q, "members_only": members_only, "show_bots": show_bots, "date": date}
+    query = urlencode({k: v for k, v in filters.items() if v})
+    return templates.TemplateResponse(request, "access_logs.html", {
+        "user": user, "summary": summary, "members": members, **result,
+        "filters": filters, "query": query, "events": access_log.EVENTS,
+        "retention_days": access_log.RETENTION_DAYS,
+    })
 
 
 @app.get("/admin/billing", response_class=HTMLResponse)

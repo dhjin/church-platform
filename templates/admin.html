@@ -7,7 +7,7 @@
     <title>관리자 페이지 - {{ t.church_name }}</title>
     <link rel="stylesheet" href="/static/css/style.css?v=26">
     {% include "_site_head.html" %}
-    <link rel="stylesheet" href="/static/css/admin.css?v=15">
+    <link rel="stylesheet" href="/static/css/admin.css?v=16">
 </head>
 
 <body>
@@ -24,6 +24,7 @@
                         {% if user.role in ['owner', 'admin'] %}
                         <a href="/admin/site" style="color:#fcd34d;font-weight:600;font-size:.85rem;margin-right:8px">🎨 사이트 디자인</a>
                         <a href="/admin/billing" style="color:#93c5fd;font-weight:600;font-size:.85rem;margin-right:8px">💳 구독·결제</a>
+                        <a href="/admin/access-logs" style="color:#86efac;font-weight:600;font-size:.85rem;margin-right:8px">📊 접속 로그</a>
                         {% endif %}
                         <span>👤 {{ user.username }}</span>
                         {% if user.role == 'owner' %}
