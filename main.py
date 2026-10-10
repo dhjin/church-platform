@@ -299,7 +299,7 @@ def site_context(request: Request) -> dict:
         "theme_css": site_config.theme_css(cfg),
         "font_href": site_config.font_href(cfg),
         "logo_url": logo,
-        "og_image": base + (logo or "/static/images/og-image.jpg"),
+        "og_image": base + (cfg["share_image"] or logo or "/static/images/og-image.jpg"),
         "base_url": base,
         "page_url": base + request.url.path,
         "home_sections": cfg["home_sections"],
@@ -815,6 +815,21 @@ async def pastoral_list_en(request: Request, page: int = 1, q: str = ""):
     return await _pastoral_list(request, "en", page, q)
 
 
+def _legacy_post_redirect(tenant_id: int, kind: str, old_id: int, prefix: str):
+    """옮겨 오면서 id 가 바뀐 글이면 새 주소로 보내고, 아니면 404."""
+    conn = get_conn()
+    try:
+        with conn.cursor() as cur:
+            cur.execute("SELECT new_id FROM legacy_post_ids WHERE tenant_id=%s AND kind=%s AND old_id=%s",
+                        (tenant_id, kind, old_id))
+            row = cur.fetchone()
+    finally:
+        conn.close()
+    if not row:
+        raise HTTPException(404, "Post not found")
+    return RedirectResponse(f"{prefix}{row[0]}", status_code=301)
+
+
 async def _pastoral_detail(request: Request, post_id: int, lang: str = "ko"):
     tenant_id = request.state.tenant["id"]
     t = get_t(lang, request)
@@ -834,7 +849,7 @@ async def _pastoral_detail(request: Request, post_id: int, lang: str = "ko"):
     if not row:
         cur.close()
         conn.close()
-        raise HTTPException(404, "Post not found")
+        return _legacy_post_redirect(tenant_id, "pastoral", post_id, f"{lp}/pastoral/")
     post = {"id": row[0], "title": row[1], "content": row[2], "image_path": row[3],
             "author": row[4], "views": row[5], "created_at": row[6]}
     cur.execute(
@@ -898,7 +913,7 @@ async def _view_news(request: Request, news_id: int, lang: str = "ko"):
     if not row:
         cur.close()
         conn.close()
-        raise HTTPException(404, "Post not found")
+        return _legacy_post_redirect(tenant_id, "news", news_id, f"{lp}/news/")
     news = {"id": row[0], "title": row[1], "content": row[2], "date": row[3],
             "views": row[4], "author": row[5], "image_path": row[6]}
     cur.execute(
@@ -1946,6 +1961,7 @@ async def site_activate_version(version_id: int, user: dict = Depends(require_ad
 async def site_update_images(
     logo: Optional[UploadFile] = File(None), about_image: Optional[UploadFile] = File(None),
     mission_image: Optional[UploadFile] = File(None), remove_mission: str = Form(""),
+    share_image: Optional[UploadFile] = File(None), remove_share: str = Form(""),
     remove_logo: str = Form(""), remove_about: List[str] = Form(default=[]),
     user: dict = Depends(require_admin),
 ):
@@ -1965,8 +1981,13 @@ async def site_update_images(
     new_mission = _save_site_image(tenant_id, mission_image, "mission")
     if new_mission:
         mission_path = new_mission
+    share_path = "" if remove_share else cfg["share_image"]
+    new_share = _save_site_image(tenant_id, share_image, "share")
+    if new_share:
+        share_path = new_share
     cfg = site_config.normalize_config(
-        {"logo_path": logo_path, "about_images": about_images, "mission_image": mission_path}, base=cfg)
+        {"logo_path": logo_path, "about_images": about_images, "mission_image": mission_path,
+         "share_image": share_path}, base=cfg)
     site_config.save_version(tenant_id, cfg, "manual", "이미지 변경", created_by=user["username"])
     return _site_redirect(msg="이미지를 저장했습니다.")
 

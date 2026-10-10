@@ -81,6 +81,10 @@ def _website_db(path: Path, uploads: Path):
 
 def test_import_church_website(db, tmp_path):
     _website_db(tmp_path / "church.db", tmp_path / "uploads")
+    other = _tenant(db, "other")
+    with db.cursor() as cur:  # 다른 교회가 이미 news id 7 을 쓰고 있다 → 이 글만 새 id
+        cur.execute("INSERT INTO news (id, tenant_id, title, date) VALUES (7, %s, '남의 글', '2026-01-01')", (other,))
+    db.commit()
     target = tmp_path / "plat_uploads"
     cmd = [sys.executable, str(ROOT / "scripts/import_church_website.py"), "--sqlite", str(tmp_path / "church.db"),
            "--uploads", str(tmp_path / "uploads"), "--slug", "plus", "--church-name", "더하는 교회",
@@ -91,14 +95,22 @@ def test_import_church_website(db, tmp_path):
     result = json.loads(out.stdout)
     tid = result["tenant_id"]
     assert result["comments_skipped"] == 1
+    assert result["ids_changed"] == 1
 
     with db.cursor() as cur:
         cur.execute("SELECT domain FROM tenant_domains WHERE tenant_id=%s", (tid,))
         assert cur.fetchall() == [("example.org",)]
         cur.execute("SELECT username, password, role FROM users WHERE tenant_id=%s ORDER BY id", (tid,))
         assert cur.fetchall() == [("admin", "$2b$12$hash", "owner"), ("kim@x.kr", "$2b$12$h2", "user")]
-        cur.execute("SELECT content, image_path FROM pastoral_posts WHERE tenant_id=%s", (tid,))
-        assert cur.fetchone() == (f'<img src="/uploads/{tid}/p.png">', f"/uploads/{tid}/p.png")
+        cur.execute("SELECT id, content, image_path FROM pastoral_posts WHERE tenant_id=%s", (tid,))
+        assert cur.fetchone() == (3, f'<img src="/uploads/{tid}/p.png">', f"/uploads/{tid}/p.png")  # 예전 id 유지
+        cur.execute("SELECT id FROM news WHERE tenant_id=%s", (tid,))
+        new_news_id = cur.fetchone()[0]
+        assert new_news_id > 7
+        cur.execute("SELECT kind, old_id, new_id FROM legacy_post_ids WHERE tenant_id=%s", (tid,))
+        assert cur.fetchall() == [("news", 7, new_news_id)]
+        cur.execute("INSERT INTO news (tenant_id, title, date) VALUES (%s, '다음 글', '2026-04-01') RETURNING id", (tid,))
+        assert cur.fetchone()[0] > new_news_id  # 시퀀스가 옮긴 id 뒤로 맞춰졌다
         cur.execute("""SELECT c.content, n.title, u.username FROM comments c JOIN news n ON n.id = c.post_id
                        JOIN users u ON u.id = c.user_id WHERE c.tenant_id=%s""", (tid,))
         assert cur.fetchall() == [("아멘", "소식", "kim@x.kr")]
@@ -107,7 +119,15 @@ def test_import_church_website(db, tmp_path):
     assert cfg["texts"]["denomination"] == "기독교 한국침례회"
     assert cfg["logo_path"] == f"/uploads/{tid}/site_logo.png"
     assert len(cfg["about_images"]) == 3 and cfg["mission_image"]
+    assert cfg["share_image"] == f"/uploads/{tid}/site_og-image.jpg"
     assert (target / str(tid) / "p.png").exists()
 
+    db.commit()  # 열린 읽기 트랜잭션이 스크립트의 스키마 적용을 막지 않도록
     again = subprocess.run(cmd, capture_output=True, text=True, env=env, cwd=ROOT)
     assert again.returncode != 0 and "--replace" in again.stderr
+
+
+def test_old_upload_paths_redirect_into_tenant_folder():
+    assert middleware._OLD_UPLOAD.match("/uploads/news_abc.jpg")
+    assert not middleware._OLD_UPLOAD.match("/uploads/3/news_abc.jpg")
+    assert not middleware._OLD_UPLOAD.match("/uploads/../etc/passwd")

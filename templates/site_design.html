@@ -235,6 +235,13 @@
                                     <div class="thumbs"><label><img src="{{ cfg.mission_image }}" alt=""><span><input type="checkbox" name="remove_mission" value="1"> 삭제</span></label></div>
                                     {% endif %}
                                 </div>
+                                <div class="form-group">
+                                    <label>카카오톡·SNS 공유 미리보기 이미지 (가로형 권장)</label>
+                                    <input type="file" name="share_image" accept="image/*">
+                                    {% if cfg.share_image %}
+                                    <div class="thumbs"><label><img src="{{ cfg.share_image }}" alt=""><span><input type="checkbox" name="remove_share" value="1"> 삭제</span></label></div>
+                                    {% endif %}
+                                </div>
                             </div>
                             <button type="submit" class="btn btn-primary">이미지 저장</button>
                         </form>

@@ -121,6 +121,7 @@ DEFAULT_CONFIG = {
     "logo_path": "",
     "about_images": [],
     "mission_image": "",
+    "share_image": "",
     "en": {"texts": {}, "worship_schedule": []},
 }
 
@@ -232,9 +233,10 @@ def normalize_config(raw: Optional[dict], base: Optional[dict] = None) -> dict:
     if "logo_path" in raw:
         logo = raw["logo_path"]
         cfg["logo_path"] = logo if isinstance(logo, str) and _UPLOAD_PATH.match(logo) else ""
-    if "mission_image" in raw:
-        image = raw["mission_image"]
-        cfg["mission_image"] = image if isinstance(image, str) and _UPLOAD_PATH.match(image) else ""
+    for key in ("mission_image", "share_image"):
+        if key in raw:
+            image = raw[key]
+            cfg[key] = image if isinstance(image, str) and _UPLOAD_PATH.match(image) else ""
     images = raw.get("about_images")
     if isinstance(images, list):
         cfg["about_images"] = [p for p in images if isinstance(p, str) and _UPLOAD_PATH.match(p)][:MAX_ABOUT_IMAGES]

@@ -361,3 +361,12 @@ CREATE TABLE IF NOT EXISTS tenant_domains (
     created_at TIMESTAMP DEFAULT NOW()
 );
 CREATE INDEX IF NOT EXISTS idx_tenant_domains_tenant ON tenant_domains(tenant_id);
+
+-- 다른 사이트에서 옮겨 온 글의 예전 id → 새 id (예전 주소 /news/3 을 새 주소로 돌려보낸다)
+CREATE TABLE IF NOT EXISTS legacy_post_ids (
+    tenant_id INTEGER NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+    kind TEXT NOT NULL,
+    old_id INTEGER NOT NULL,
+    new_id INTEGER NOT NULL,
+    PRIMARY KEY (tenant_id, kind, old_id)
+);
