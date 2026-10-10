@@ -46,210 +46,21 @@ ES_URL = os.getenv("ES_URL", "http://elasticsearch:9200")
 es = Elasticsearch(ES_URL)
 ES_INDEX = "theology_articles"
 
-LANDING_HTML = """<!DOCTYPE html>
-<html lang="ko"><head><meta charset="UTF-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<title>교회 플랫폼 — 30일 무료 시작</title>
-<style>
-*{box-sizing:border-box;margin:0;padding:0}
-body{font-family:'Segoe UI',Tahoma,sans-serif;background:#f0f4f8;color:#333}
-.hero{background:linear-gradient(135deg,#1e3a5f,#2d6a9f);color:#fff;padding:64px 20px 48px;text-align:center}
-.hero h1{font-size:2.2rem;margin-bottom:.8rem}
-.hero p{font-size:1.05rem;opacity:.9;margin-bottom:0}
-.features{max-width:860px;margin:40px auto 0;padding:0 20px;display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:16px}
-.card{background:rgba(255,255,255,.12);border-radius:10px;padding:20px;text-align:center}
-.card h3{font-size:.95rem;margin-top:.4rem}
-.card .icon{font-size:1.6rem}
-.section{max-width:520px;margin:48px auto;padding:0 20px}
-.section h2{font-size:1.3rem;color:#1e3a5f;margin-bottom:4px}
-.section p.sub{font-size:.88rem;color:#666;margin-bottom:24px}
-.form-wrap{background:#fff;border-radius:14px;padding:32px;box-shadow:0 4px 20px rgba(0,0,0,.08)}
-.field{margin-bottom:18px}
-label{display:block;font-size:.82rem;font-weight:600;color:#555;margin-bottom:6px}
-input{width:100%;padding:10px 12px;border:1.5px solid #d1d9e0;border-radius:8px;font-size:.95rem;outline:none;transition:border .2s}
-input:focus{border-color:#2d6a9f}
-input.error{border-color:#e53e3e}
-.slug-wrap{display:flex;align-items:center;gap:0}
-.slug-pre{background:#f0f4f8;border:1.5px solid #d1d9e0;border-right:none;border-radius:8px 0 0 8px;padding:10px 10px;font-size:.8rem;color:#888;white-space:nowrap}
-.slug-wrap input{border-radius:0 8px 8px 0;border-left:none}
-.slug-suf{background:#f0f4f8;border:1.5px solid #d1d9e0;border-left:none;border-radius:0 8px 8px 0;padding:10px 8px;font-size:.78rem;color:#888;white-space:nowrap}
-.slug-wrap2{display:flex;align-items:center}
-.slug-wrap2 input{border-radius:8px 0 0 8px}
-.divider{border:none;border-top:1px solid #eee;margin:22px 0}
-.btn{width:100%;padding:13px;background:#1e3a5f;color:#fff;border:none;border-radius:8px;font-size:1rem;font-weight:600;cursor:pointer;transition:background .2s;margin-top:4px}
-.btn:hover{background:#2d6a9f}
-.btn:disabled{background:#aaa;cursor:not-allowed}
-.msg{margin-top:16px;padding:12px 16px;border-radius:8px;font-size:.9rem;display:none}
-.msg.success{background:#e6f4ea;color:#1a6b2e;display:block}
-.msg.error{background:#fde8e8;color:#9b1c1c;display:block}
-.msg a{color:#1e3a5f;font-weight:600}
-.hint{font-size:.78rem;color:#888;margin-top:4px}
-.footer{text-align:center;padding:32px 20px;color:#999;font-size:.82rem}
-</style></head><body>
-
-<div class="hero">
-  <h1>✝ 교회 플랫폼</h1>
-  <p>귀 교회만의 웹사이트를 30일 무료로 시작하세요</p>
-  <div class="features">
-    <div class="card"><div class="icon">🌐</div><h3>전용 서브도메인</h3></div>
-    <div class="card"><div class="icon">🎬</div><h3>설교·영상 관리</h3></div>
-    <div class="card"><div class="icon">📰</div><h3>소식 &amp; 목양의 창</h3></div>
-    <div class="card"><div class="icon">💝</div><h3>온라인 헌금 연동</h3></div>
-    <div class="card"><div class="icon">🤖</div><h3>AI 소식 초안 작성</h3></div>
-  </div>
-</div>
-
-<div class="section">
-  <h2>AI로 더 쉬운 교회 운영</h2>
-  <p class="sub">Anthropic Claude API 연동</p>
-  <div class="form-wrap" style="font-size:.9rem;line-height:1.8;color:#444">
-    <p>교회 관리자가 행사 날짜, 장소, 대상 같은 핵심 내용만 적으면 Claude가 교회소식 공지문 초안을 바로 작성합니다.
-    관리자는 초안을 확인하고 다듬어 게시하기만 하면 됩니다.</p>
-    <ul style="margin:12px 0 0 18px">
-      <li>교회소식·행사 공지 초안 자동 작성 (제공 중)</li>
-      <li>설교 요약과 주보 문안 작성 (개발 예정)</li>
-      <li>한국어·영어 다국어 소식 번역 (개발 예정)</li>
-    </ul>
-  </div>
-</div>
-
-<div class="section">
-  <h2>교회 등록</h2>
-  <p class="sub">카드 없이 즉시 시작 · 30일 무료 체험</p>
-  <div class="form-wrap">
-    <div class="field">
-      <label>교회명 *</label>
-      <input id="church_name" type="text" placeholder="세종침례교회">
-    </div>
-    <div class="field">
-      <label>웹사이트 주소 (slug) *</label>
-      <div class="slug-wrap2">
-        <input id="slug" type="text" placeholder="sejong" style="border-radius:8px 0 0 8px">
-        <div class="slug-suf">.thechurch-plus.org</div>
-      </div>
-      <div class="hint">소문자·숫자·하이픈만 사용 (예: sejong-church)</div>
-    </div>
-    <div class="field">
-      <label>담임목사명</label>
-      <input id="pastor_name" type="text" placeholder="홍길동">
-    </div>
-    <div class="field">
-      <label>연락처</label>
-      <input id="phone" type="text" placeholder="010-1234-5678">
-    </div>
-    <div class="field">
-      <label>주소</label>
-      <input id="address" type="text" placeholder="세종시 조치원읍 ...">
-    </div>
-    <hr class="divider">
-    <div class="field">
-      <label>관리자 아이디 *</label>
-      <input id="admin_username" type="text" placeholder="admin">
-    </div>
-    <div class="field">
-      <label>관리자 비밀번호 * <span style="font-weight:400">(8자 이상)</span></label>
-      <input id="admin_password" type="password" placeholder="••••••••">
-    </div>
-    <div class="field">
-      <label>비밀번호 확인 *</label>
-      <input id="admin_password2" type="password" placeholder="••••••••">
-    </div>
-    <div class="field">
-      <label>초대 코드 *</label>
-      <input id="invite_code" type="text" placeholder="운영자에게 발급받은 코드 입력">
-    </div>
-    <button class="btn" id="submitBtn" onclick="submitForm()">30일 무료 시작하기</button>
-    <div class="msg" id="msg"></div>
-  </div>
-</div>
-
-<div class="section" style="margin-top:0;margin-bottom:32px">
-  <div class="form-wrap" style="background:#f8fafc;box-shadow:none;border:1.5px solid #e2e8f0">
-    <h3 style="color:#1e3a5f;margin-bottom:12px;font-size:1rem">서비스 이용 안내</h3>
-    <ul style="font-size:.85rem;color:#555;line-height:1.9;padding-left:1.2em">
-      <li><b>기본 도메인:</b> <code>{slug}.thechurch-plus.org</code> — 무료 제공</li>
-      <li><b>독립 도메인 사용 시:</b> 도메인 구매·갱신 비용은 별도 부담 (연 단위, 도메인 종류에 따라 상이)</li>
-      <li><b>월 구독료:</b> 30일 무료 체험 후 월 19,000원</li>
-      <li><b>초대 코드:</b> 현재 초대 코드를 받은 교회만 등록 가능합니다. 문의: 운영자에게 연락해 주세요.</li>
-    </ul>
-  </div>
-</div>
-
-<div class="footer">
-  <p>이미 등록하셨나요? <a href="#" onclick="goLogin()" style="color:#1e3a5f;font-weight:600">내 교회 사이트로 이동 →</a></p>
-  <p style="margin-top:16px;padding:14px 20px;background:#fff3cd;border-radius:8px;color:#664d03;font-size:.84rem;line-height:1.7;display:inline-block;max-width:480px">
-    💬 초대 코드 및 가입 문의는 아래 카카오톡 채널로 연락 주시면 가장 빠르게 답변해 드립니다.<br>
-    <span style="font-weight:600">— 더처치플러스 플랫폼 —</span>
-  </p>
-  <p style="margin-top:16px">문의: <a href="mailto:__CONTACT_EMAIL__" style="color:#1e3a5f">__CONTACT_EMAIL__</a></p>
-  __BUSINESS_INFO__
-  <p style="margin-top:8px">&copy; 2026 Church Platform · 월 19,000원 구독 (30일 무료 후)</p>
-</div>
-
-<script>
-function goLogin() {
-  const slug = prompt('교회 slug를 입력하세요 (예: sejong):');
-  if (slug) location.href = 'https://' + slug.trim() + '.thechurch-plus.org/login';
-}
-
-async function submitForm() {
-  const btn = document.getElementById('submitBtn');
-  const msg = document.getElementById('msg');
-  msg.className = 'msg'; msg.style.display = 'none';
-
-  const church_name = document.getElementById('church_name').value.trim();
-  const slug = document.getElementById('slug').value.trim().toLowerCase();
-  const pastor_name = document.getElementById('pastor_name').value.trim();
-  const phone = document.getElementById('phone').value.trim();
-  const address = document.getElementById('address').value.trim();
-  const admin_username = document.getElementById('admin_username').value.trim();
-  const admin_password = document.getElementById('admin_password').value;
-  const admin_password2 = document.getElementById('admin_password2').value;
-  const invite_code = document.getElementById('invite_code').value.trim();
-
-  if (!church_name || !slug || !admin_username || !admin_password || !invite_code) {
-    msg.className = 'msg error'; msg.textContent = '필수 항목(*)을 모두 입력해주세요.'; return;
-  }
-  if (!/^[a-z0-9][a-z0-9-]{1,28}[a-z0-9]$/.test(slug)) {
-    msg.className = 'msg error'; msg.textContent = 'slug는 소문자·숫자·하이픈 3~30자, 영숫자로 시작·끝나야 합니다.'; return;
-  }
-  if (admin_password.length < 8) {
-    msg.className = 'msg error'; msg.textContent = '비밀번호는 8자 이상이어야 합니다.'; return;
-  }
-  if (admin_password !== admin_password2) {
-    msg.className = 'msg error'; msg.textContent = '비밀번호가 일치하지 않습니다.'; return;
-  }
-
-  btn.disabled = true; btn.textContent = '등록 중...';
-  try {
-    const res = await fetch('/api/register-tenant', {
-      method: 'POST',
-      headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({slug, church_name, pastor_name, phone, address, admin_username, admin_password, invite_code})
-    });
-    const data = await res.json();
-    if (!res.ok) {
-      msg.className = 'msg error'; msg.textContent = data.detail || '등록 실패. 다시 시도해주세요.';
-    } else {
-      const url = 'https://' + slug + '.thechurch-plus.org';
-      msg.className = 'msg success';
-      msg.innerHTML = '🎉 등록 완료! <a href="' + url + '">' + url + '</a> 에서 지금 바로 시작하세요.';
-    }
-  } catch(e) {
-    msg.className = 'msg error'; msg.textContent = '네트워크 오류. 잠시 후 다시 시도해주세요.';
-  } finally {
-    btn.disabled = false; btn.textContent = '30일 무료 시작하기';
-  }
-}
-</script>
-</body></html>"""
-
 CONTACT_EMAIL = os.getenv("CONTACT_EMAIL", "contact@thechurch-plus.org")
 BUSINESS_INFO = os.getenv("BUSINESS_INFO", "")
-LANDING_HTML = LANDING_HTML.replace("__CONTACT_EMAIL__", CONTACT_EMAIL).replace(
-    "__BUSINESS_INFO__",
-    f'<p style="margin-top:8px">{BUSINESS_INFO}</p>' if BUSINESS_INFO else "",
-)
+KAKAO_CHANNEL_URL = os.getenv("KAKAO_CHANNEL_URL", "")
+
+
+def _landing_page(request: Request):
+    plans = billing_config.PLANS
+    return templates.TemplateResponse(request, "landing.html", {
+        "plans": plans, "plan_order": billing_config.PLAN_ORDER,
+        "min_price": "{:,}".format(min(p["amount"] for p in plans.values())),
+        "setup_fee": billing_config.SETUP_FEE_AMOUNT,
+        "contact_email": CONTACT_EMAIL, "business_info": BUSINESS_INFO,
+        "kakao_channel_url": KAKAO_CHANNEL_URL,
+    })
+
 
 TRANSLATIONS = {
     "ko": {
@@ -794,14 +605,14 @@ async def _home(request: Request, lang: str = "ko"):
 @app.get("/", response_class=HTMLResponse)
 async def home(request: Request):
     if getattr(request.state, "tenant", None) is None:
-        return HTMLResponse(LANDING_HTML)
+        return _landing_page(request)
     return await _home(request, "ko")
 
 
 @app.get("/en/", response_class=HTMLResponse)
 async def home_en(request: Request):
     if getattr(request.state, "tenant", None) is None:
-        return HTMLResponse(LANDING_HTML)
+        return _landing_page(request)
     return await _home(request, "en")
 
 
