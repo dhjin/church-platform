@@ -944,7 +944,7 @@ async def _view_news(request: Request, news_id: int, lang: str = "ko"):
     conn.close()
     user = get_current_user(request)
     return templates.TemplateResponse(request, "news_detail.html", {"news": news, "news_images": news_images,
-        "comments": comments, "user": user, "is_admin": user and user.get("role") == "admin",
+        "comments": comments, "user": user, "is_admin": bool(user) and user.get("role") in MANAGER_ROLES,
         "t": t, "lp": lp})
 
 
@@ -1159,7 +1159,7 @@ async def delete_comment(request: Request, comment_id: int, redirect: str = "/")
         cur.close()
         conn.close()
         raise HTTPException(404, "댓글을 찾을 수 없습니다.")
-    if row[0] != user["id"] and user["role"] != "admin":
+    if row[0] != user["id"] and user["role"] not in MANAGER_ROLES:
         cur.close()
         conn.close()
         raise HTTPException(403, "삭제 권한이 없습니다.")
@@ -1202,8 +1202,14 @@ async def admin_dashboard(request: Request, user: dict = Depends(require_manager
         vid = extract_youtube_id(r[2])
         qtys.append({"id": r[0], "title": r[1], "youtube_url": r[2], "youtube_id": vid, "date": r[3], "author": r[4]})
 
-    cur.execute("SELECT id, title, content, date, views, author, image_path FROM news WHERE tenant_id=%s ORDER BY date DESC", (tenant_id,))
-    news_list = [{"id": r[0], "title": r[1], "content": r[2], "date": r[3], "views": r[4], "author": r[5], "image_path": r[6]} for r in cur.fetchall()]
+    cur.execute(
+        """SELECT n.id, n.title, n.date, n.views, n.author, n.image_path,
+                  (SELECT COUNT(*) FROM news_images i WHERE i.news_id = n.id AND i.tenant_id = n.tenant_id)
+           FROM news n WHERE n.tenant_id=%s ORDER BY n.date DESC, n.id DESC""",
+        (tenant_id,),
+    )
+    news_list = [{"id": r[0], "title": r[1], "date": r[2], "views": r[3], "author": r[4], "image_path": r[5],
+                  "image_count": r[6] or (1 if r[5] else 0)} for r in cur.fetchall()]
 
     cur.execute("SELECT content FROM church_info WHERE tenant_id=%s", (tenant_id,))
     row = cur.fetchone()
@@ -1397,42 +1403,91 @@ async def edit_news_form(request: Request, news_id: int, user: dict = Depends(re
     tenant_id = user["tenant_id"]
     conn = get_conn()
     cur = conn.cursor()
-    cur.execute("SELECT id, title, content, date FROM news WHERE id=%s AND tenant_id=%s", (news_id, tenant_id))
+    cur.execute("SELECT id, title, content, date, image_path FROM news WHERE id=%s AND tenant_id=%s", (news_id, tenant_id))
     row = cur.fetchone()
+    if not row:
+        cur.close()
+        conn.close()
+        raise HTTPException(404)
+    cur.execute(
+        "SELECT id, image_path FROM news_images WHERE news_id=%s AND tenant_id=%s ORDER BY sort_order ASC, id ASC",
+        (news_id, tenant_id),
+    )
+    images = [{"id": str(r[0]), "path": r[1]} for r in cur.fetchall()]
     cur.close()
     conn.close()
-    if not row:
-        raise HTTPException(404)
+    # 예전 홈페이지에서 옮겨 온 글은 대표 이미지가 news.image_path 에만 있을 수 있다.
+    if not images and row[4]:
+        images = [{"id": "legacy", "path": row[4]}]
     return templates.TemplateResponse(request, "news_edit.html", {
-        "news": {"id": row[0], "title": row[1], "content": row[2], "date": row[3]}, "user": user,
+        "news": {"id": row[0], "title": row[1], "content": row[2], "date": row[3]}, "images": images,
+        "user": user, "t": get_t("ko", request), "lp": "",
     })
 
 
 @app.post("/admin/news/update/{news_id}")
 async def update_news(
     request: Request, news_id: int,
-    title: str = Form(...), content: str = Form(...),
+    title: str = Form(...), content: str = Form(""), date: str = Form(""),
     images: List[UploadFile] = File(default=[]),
+    remove_images: List[str] = Form(default=[]),
     user: dict = Depends(require_manager),
 ):
+    """제목·내용·날짜를 고치고, 체크한 이미지만 지우고, 새 이미지는 뒤에 덧붙인다."""
     tenant_id = user["tenant_id"]
     upload_dir = get_upload_dir(tenant_id)
     conn = get_conn()
     cur = conn.cursor()
-    has_new = any(img and img.filename for img in images)
-    if has_new:
-        cur.execute("DELETE FROM news_images WHERE news_id=%s AND tenant_id=%s", (news_id, tenant_id))
-        for i, img in enumerate(images):
-            if img and img.filename:
-                ext = Path(img.filename).suffix.lower()
-                fname = f"news_{datetime.now().timestamp()}_{i}{ext}"
-                with (upload_dir / fname).open("wb") as f:
-                    shutil.copyfileobj(img.file, f)
-                cur.execute(
-                    "INSERT INTO news_images (tenant_id, news_id, image_path, sort_order) VALUES (%s,%s,%s,%s)",
-                    (tenant_id, news_id, f"/uploads/{tenant_id}/{fname}", i),
-                )
-    cur.execute("UPDATE news SET title=%s, content=%s WHERE id=%s AND tenant_id=%s", (title, content, news_id, tenant_id))
+    cur.execute("SELECT image_path, date FROM news WHERE id=%s AND tenant_id=%s", (news_id, tenant_id))
+    row = cur.fetchone()
+    if not row:
+        cur.close()
+        conn.close()
+        raise HTTPException(404)
+    legacy_path = row[0]
+    # 날짜를 바꾸지 않았으면 원래 값(시간이 붙어 있을 수 있음)을 그대로 둔다.
+    if date == str(row[1] or "")[:10]:
+        date = ""
+
+    remove_ids = [int(x) for x in remove_images if x.isdigit()]
+    if remove_ids:
+        cur.execute(
+            "DELETE FROM news_images WHERE news_id=%s AND tenant_id=%s AND id = ANY(%s)",
+            (news_id, tenant_id, remove_ids),
+        )
+    if "legacy" in remove_images:
+        cur.execute("UPDATE news SET image_path=NULL WHERE id=%s AND tenant_id=%s", (news_id, tenant_id))
+        legacy_path = None
+
+    new_images = [img for img in images if img and img.filename]
+    if new_images:
+        cur.execute(
+            "SELECT COUNT(*), COALESCE(MAX(sort_order), -1) FROM news_images WHERE news_id=%s AND tenant_id=%s",
+            (news_id, tenant_id),
+        )
+        count, next_order = cur.fetchone()
+        next_order += 1
+        # 대표 이미지만 있던 옛 글에 이미지를 더하면, 대표 이미지가 사라지지 않게 목록 맨 앞에 넣어 둔다.
+        if count == 0 and legacy_path:
+            cur.execute(
+                "INSERT INTO news_images (tenant_id, news_id, image_path, sort_order) VALUES (%s,%s,%s,%s)",
+                (tenant_id, news_id, legacy_path, next_order),
+            )
+            next_order += 1
+        for i, img in enumerate(new_images):
+            ext = Path(img.filename).suffix.lower()
+            fname = f"news_{datetime.now().timestamp()}_{i}{ext}"
+            with (upload_dir / fname).open("wb") as f:
+                shutil.copyfileobj(img.file, f)
+            cur.execute(
+                "INSERT INTO news_images (tenant_id, news_id, image_path, sort_order) VALUES (%s,%s,%s,%s)",
+                (tenant_id, news_id, f"/uploads/{tenant_id}/{fname}", next_order + i),
+            )
+    if date:
+        cur.execute("UPDATE news SET title=%s, content=%s, date=%s WHERE id=%s AND tenant_id=%s",
+                    (title, content, date, news_id, tenant_id))
+    else:
+        cur.execute("UPDATE news SET title=%s, content=%s WHERE id=%s AND tenant_id=%s", (title, content, news_id, tenant_id))
     conn.commit()
     cur.close()
     conn.close()
@@ -2377,7 +2432,8 @@ async def upload_bulletin(
     if ext not in (".jpg", ".jpeg", ".png", ".webp", ".pdf"):
         raise HTTPException(400, "jpg/png/webp/pdf 파일만 가능합니다.")
     upload_dir = get_upload_dir(tenant_id)
-    fname = f"bulletin_{date}{ext}"
+    # 같은 날짜로 다시 올려도 이전 파일을 덮어쓰지 않도록 시각을 붙인다.
+    fname = f"bulletin_{date}_{int(datetime.now().timestamp())}{ext}"
     with (upload_dir / fname).open("wb") as f:
         shutil.copyfileobj(image.file, f)
     image_path = f"/uploads/{tenant_id}/{fname}"
@@ -2388,6 +2444,48 @@ async def upload_bulletin(
         "INSERT INTO bulletins (tenant_id, title, date, image_path) VALUES (%s,%s,%s,%s) "
         "ON CONFLICT DO NOTHING",
         (tenant_id, display_title, date, image_path),
+    )
+    conn.commit()
+    cur.close()
+    conn.close()
+    return RedirectResponse(url="/admin#bulletin", status_code=303)
+
+
+@app.post("/admin/bulletin/update/{bulletin_id}")
+async def update_bulletin(
+    bulletin_id: int,
+    title: str = Form(""),
+    date: str = Form(...),
+    image: Optional[UploadFile] = File(None),
+    user: dict = Depends(require_admin),
+):
+    """주보 제목·날짜를 고치고, 새 파일을 고르면 이미지를 바꾼다."""
+    tenant_id = user["tenant_id"]
+    conn = get_conn()
+    cur = conn.cursor()
+    cur.execute("SELECT image_path FROM bulletins WHERE id=%s AND tenant_id=%s", (bulletin_id, tenant_id))
+    row = cur.fetchone()
+    if not row:
+        cur.close()
+        conn.close()
+        raise HTTPException(404)
+    image_path = row[0]
+    if image is not None and image.filename:
+        ext = Path(image.filename).suffix.lower()
+        if ext not in (".jpg", ".jpeg", ".png", ".webp", ".pdf"):
+            cur.close()
+            conn.close()
+            raise HTTPException(400, "jpg/png/webp/pdf 파일만 가능합니다.")
+        fname = f"bulletin_{date}_{int(datetime.now().timestamp())}{ext}"
+        with (get_upload_dir(tenant_id) / fname).open("wb") as f:
+            shutil.copyfileobj(image.file, f)
+        old = Path("." + image_path)
+        if old.exists():
+            old.unlink()
+        image_path = f"/uploads/{tenant_id}/{fname}"
+    cur.execute(
+        "UPDATE bulletins SET title=%s, date=%s, image_path=%s WHERE id=%s AND tenant_id=%s",
+        (title or f"{date} 주보", date, image_path, bulletin_id, tenant_id),
     )
     conn.commit()
     cur.close()

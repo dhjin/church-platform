@@ -328,3 +328,36 @@
 .btn-secondary:hover {
     background-color: #5a6268;
 }
+
+/* 관리 메뉴 바로가기 */
+.admin-quicknav {
+    position: sticky;
+    top: 0;
+    z-index: 20;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    padding: 10px 0;
+    margin-bottom: 1rem;
+    background: var(--bg-light, #f5f7fa);
+    border-bottom: 1px solid #e5e7eb;
+}
+.admin-quicknav a {
+    padding: 6px 12px;
+    border-radius: 16px;
+    background: #fff;
+    border: 1px solid #d1d5db;
+    color: #1e3a5f;
+    font-size: .85rem;
+    text-decoration: none;
+}
+.admin-quicknav a:hover { background: #1e3a5f; color: #fff; }
+.admin-section { scroll-margin-top: 64px; }
+
+/* 쌓인 목록: 검색칸과 더 보기 */
+.list-tools { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; flex-wrap: wrap; }
+.list-tools input[type="search"] { flex: 1 1 220px; max-width: 320px; padding: 8px 10px; border: 1px solid #d1d5db; border-radius: 6px; font-size: .9rem; }
+.list-tools-count { color: #6b7280; font-size: .85rem; }
+.list-more-btn { display: block; width: 100%; margin-top: 10px; padding: 8px; border: 1px dashed #9ca3af; border-radius: 6px; background: #fff; color: #374151; cursor: pointer; font-size: .9rem; }
+.list-more-btn:hover { background: #f3f4f6; }
+.is-collapsed { display: none !important; }

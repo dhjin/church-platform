@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>소식 수정 - {{ t.church_name }}</title>
     <link rel="icon" href="/static/favicon.ico" type="image/x-icon">
-    <link rel="stylesheet" href="/static/css/admin.css?v=16">
+    <link rel="stylesheet" href="/static/css/admin.css?v=17">
     <style>
         body { background: #f5f5f5; font-family: inherit; }
         .edit-container { max-width: 800px; margin: 60px auto; padding: 2rem; background: white; border-radius: 12px; box-shadow: 0 2px 12px rgba(0,0,0,0.1); }
@@ -13,9 +13,17 @@
         .form-group { margin-bottom: 1.2rem; }
         .form-group label { display: block; margin-bottom: 6px; font-weight: 600; color: #555; font-size: 0.95rem; }
         .form-group input[type="text"],
+        .form-group input[type="date"],
         .form-group textarea { width: 100%; padding: 12px; border: 2px solid #ddd; border-radius: 8px; font-size: 1rem; font-family: inherit; box-sizing: border-box; }
         .form-group textarea { resize: vertical; min-height: 300px; }
         .form-group input:focus, .form-group textarea:focus { outline: none; border-color: #007bff; }
+        .form-hint { display: block; margin-top: 4px; color: #888; font-size: .85rem; font-weight: 400; }
+        .current-images { display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 10px; }
+        .current-images label { display: block; border: 2px solid #eee; border-radius: 8px; overflow: hidden; cursor: pointer; font-weight: 400; margin: 0; }
+        .current-images img { display: block; width: 100%; aspect-ratio: 3/4; object-fit: cover; }
+        .current-images span { display: block; padding: 6px; font-size: .85rem; text-align: center; }
+        .current-images input:checked + img { opacity: .35; }
+        .current-images label:has(input:checked) { border-color: #dc3545; }
         .form-actions { display: flex; gap: 10px; margin-top: 1.5rem; }
     </style>
 </head>
@@ -28,16 +36,37 @@
                 <input type="text" name="title" value="{{ news.title }}" required>
             </div>
             <div class="form-group">
+                <label>작성일</label>
+                <input type="date" name="date" value="{{ (news.date or '')[:10] }}">
+                <small class="form-hint">목록은 작성일 순서로 보입니다.</small>
+            </div>
+            <div class="form-group">
                 <label>내용</label>
                 <textarea name="content">{{ news.content }}</textarea>
             </div>
+            {% if images %}
             <div class="form-group">
-                <label>이미지 교체 (선택, 기존 이미지 대체)</label>
+                <label>지금 올라가 있는 이미지 ({{ images|length }}장)</label>
+                <div class="current-images">
+                    {% for img in images %}
+                    <label>
+                        <input type="checkbox" name="remove_images" value="{{ img.id }}" hidden>
+                        <img src="{{ img.path }}" alt="이미지 {{ loop.index }}" loading="lazy">
+                        <span>{{ loop.index }}번째 · 눌러서 삭제 표시</span>
+                    </label>
+                    {% endfor %}
+                </div>
+                <small class="form-hint">지울 이미지를 눌러 흐리게 표시한 뒤 저장하세요. 표시하지 않은 이미지는 그대로 남습니다.</small>
+            </div>
+            {% endif %}
+            <div class="form-group">
+                <label>이미지 추가 (선택, 여러 장 가능)</label>
                 <input type="file" name="images" multiple accept="image/*">
+                <small class="form-hint">새로 고른 이미지는 기존 이미지 뒤에 붙습니다. 주보를 통째로 바꾸려면 기존 이미지를 삭제 표시하고 새 이미지를 고르세요.</small>
             </div>
             <div class="form-actions">
                 <button type="submit" class="btn-edit">저장</button>
-                <a href="/admin" class="btn-delete" style="text-decoration:none; padding: 6px 12px;">취소</a>
+                <a href="/admin#news" class="btn-delete" style="text-decoration:none; padding: 6px 12px;">취소</a>
             </div>
         </form>
     </div>
