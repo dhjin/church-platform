@@ -81,6 +81,29 @@ def rows(src, table, columns):
     return [dict(zip(columns, r)) for r in src.execute(f"SELECT {', '.join(cols)} FROM {table} ORDER BY id")]
 
 
+def insert_keeping_ids(cur, tid, table, kind, src_rows, columns, values) -> dict:
+    """소식·목양의 窓은 예전 글 주소(/news/3, /pastoral/12)가 그대로 열리도록 가능한 한 같은 id 로 넣는다.
+    다른 교회가 이미 쓰는 id 는 새 id 를 받고 legacy_post_ids 에 남겨 예전 주소를 새 주소로 돌려보낸다.
+    새 id 는 기존 최대 id 보다 크므로 예전 id 와 겹치지 않는다."""
+    cols = ", ".join(["tenant_id"] + columns)
+    marks = ", ".join(["%s"] * (len(columns) + 1))
+    mapping, collided = {}, []
+    for r in src_rows:
+        cur.execute(f"SELECT 1 FROM {table} WHERE id=%s", (r["id"],))
+        if cur.fetchone():
+            collided.append(r)
+            continue
+        cur.execute(f"INSERT INTO {table} (id, {cols}) VALUES (%s, {marks})", (r["id"], tid, *values(r)))
+        mapping[r["id"]] = r["id"]
+    cur.execute(f"SELECT setval(pg_get_serial_sequence('{table}', 'id'), GREATEST((SELECT MAX(id) FROM {table}), 1))")
+    for r in collided:
+        cur.execute(f"INSERT INTO {table} ({cols}) VALUES ({marks}) RETURNING id", (tid, *values(r)))
+        mapping[r["id"]] = cur.fetchone()[0]
+        cur.execute("INSERT INTO legacy_post_ids (tenant_id, kind, old_id, new_id) VALUES (%s, %s, %s, %s)",
+                    (tid, kind, r["id"], mapping[r["id"]]))
+    return mapping
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--sqlite", required=True)
@@ -169,27 +192,22 @@ def main():
             cur.execute(f"INSERT INTO {table} (tenant_id, title, youtube_url, date, author) VALUES (%s,%s,%s,%s,%s)",
                         (tid, r["title"], r["youtube_url"], r["date"], r["author"] or ""))
 
-    news_map = {}
-    for r in rows(src, "news", ["id", "title", "content", "date", "views", "author", "image_path"]):
-        cur.execute(
-            """INSERT INTO news (tenant_id, title, content, date, views, author, image_path)
-               VALUES (%s,%s,%s,%s,%s,%s,%s) RETURNING id""",
-            (tid, r["title"], text(r["content"]), r["date"], r["views"] or 0, r["author"] or "", fix(r["image_path"])),
-        )
-        news_map[r["id"]] = cur.fetchone()[0]
+    news_map = insert_keeping_ids(
+        cur, tid, "news", "news", rows(src, "news", ["id", "title", "content", "date", "views", "author", "image_path"]),
+        ["title", "content", "date", "views", "author", "image_path"],
+        lambda r: (r["title"], text(r["content"]), r["date"], r["views"] or 0, r["author"] or "", fix(r["image_path"])),
+    )
     for r in rows(src, "news_images", ["id", "news_id", "image_path", "sort_order"]):
         if r["news_id"] in news_map:
             cur.execute("INSERT INTO news_images (tenant_id, news_id, image_path, sort_order) VALUES (%s,%s,%s,%s)",
                         (tid, news_map[r["news_id"]], fix(r["image_path"]), r["sort_order"] or 0))
 
-    pastoral_map = {}
-    for r in rows(src, "pastoral_posts", ["id", "title", "content", "image_path", "author", "views", "created_at"]):
-        cur.execute(
-            """INSERT INTO pastoral_posts (tenant_id, title, content, image_path, author, views, created_at)
-               VALUES (%s,%s,%s,%s,%s,%s,%s) RETURNING id""",
-            (tid, r["title"], text(r["content"]), fix(r["image_path"]), r["author"] or "", r["views"] or 0, r["created_at"]),
-        )
-        pastoral_map[r["id"]] = cur.fetchone()[0]
+    pastoral_map = insert_keeping_ids(
+        cur, tid, "pastoral_posts", "pastoral",
+        rows(src, "pastoral_posts", ["id", "title", "content", "image_path", "author", "views", "created_at"]),
+        ["title", "content", "image_path", "author", "views", "created_at"],
+        lambda r: (r["title"], text(r["content"]), fix(r["image_path"]), r["author"] or "", r["views"] or 0, r["created_at"]),
+    )
     for r in rows(src, "pastoral_images", ["id", "pastoral_id", "image_path", "sort_order"]):
         if r["pastoral_id"] in pastoral_map:
             cur.execute("INSERT INTO pastoral_images (tenant_id, pastoral_id, image_path, sort_order) VALUES (%s,%s,%s,%s)",
@@ -227,6 +245,7 @@ def main():
     cfg["logo_path"] = site_image("logo.png")
     cfg["about_images"] = [p for p in map(site_image, ABOUT_IMAGES) if p]
     cfg["mission_image"] = site_image(MISSION_IMAGE)
+    cfg["share_image"] = site_image("og-image.jpg")  # 카카오톡 공유 미리보기
     cfg = site_config.normalize_config(cfg)
     cur.execute(
         """INSERT INTO tenant_site_configs (tenant_id, config, source, note, is_active, created_by)
@@ -239,6 +258,7 @@ def main():
     print(json.dumps({
         "tenant_id": tid, "slug": args.slug, "domains": args.domain, "users": len(user_map),
         "news": len(news_map), "pastoral_posts": len(pastoral_map), "files_copied": copied,
+        "ids_changed": sum(old != new for m in (news_map, pastoral_map) for old, new in m.items()),
         "comments_skipped": skipped_comments,
     }, ensure_ascii=False))
 

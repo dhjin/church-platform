@@ -1,6 +1,10 @@
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
+from starlette.responses import RedirectResponse
 from database import get_conn
+import re
+
+_OLD_UPLOAD = re.compile(r"^/uploads/(?!\d+/)[A-Za-z0-9_.-]+$")
 
 
 class TenantMiddleware(BaseHTTPMiddleware):
@@ -13,6 +17,10 @@ class TenantMiddleware(BaseHTTPMiddleware):
         tenant = _lookup_tenant(host, parts[0] if len(parts) >= 3 else None) if host else None
 
         request.state.tenant = tenant
+        # 다른 사이트에서 옮겨 온 교회의 예전 업로드 주소(/uploads/x.jpg)를 교회 폴더(/uploads/<id>/x.jpg)로 보낸다
+        path = request.url.path
+        if tenant and _OLD_UPLOAD.match(path):
+            return RedirectResponse(f"/uploads/{tenant['id']}/{path[len('/uploads/'):]}", status_code=301)
         return await call_next(request)
 
 
