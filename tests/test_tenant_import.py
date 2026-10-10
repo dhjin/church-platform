@@ -131,3 +131,17 @@ def test_old_upload_paths_redirect_into_tenant_folder():
     assert middleware._OLD_UPLOAD.match("/uploads/news_abc.jpg")
     assert not middleware._OLD_UPLOAD.match("/uploads/3/news_abc.jpg")
     assert not middleware._OLD_UPLOAD.match("/uploads/../etc/passwd")
+
+
+def test_home_title_includes_denomination():
+    from types import SimpleNamespace
+
+    import main
+    sys.path.insert(0, str(ROOT / "scripts"))
+    import import_church_website as imp
+
+    cfg = site_config.normalize_config(json.loads(json.dumps(imp.THEHANEUN_CONFIG)))
+    tenant = {"id": 1, "church_name": "더하는 교회", "pastor_name": "김한기", "phone": "", "address": ""}
+    req = SimpleNamespace(state=SimpleNamespace(tenant=tenant, site_config=cfg))
+    assert main.get_t("ko", req)["church_name_full"] == "더하는 교회 - 기독교 한국침례회"
+    assert main.get_t("en", req)["church_name_full"] == "Deohaneun Church - Korea Baptist Convention"

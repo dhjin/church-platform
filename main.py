@@ -270,9 +270,11 @@ def get_t(lang: str = "ko", request: Optional[Request] = None) -> dict:
             "footer_tel": f"Tel: {phone}" if phone else "", "footer_phone": f"전화: {phone}" if phone else "",
             "footer_email": f"이메일: {email}" if email else "",
         })
+    denomination = en.get("denomination") or texts["denomination"]
     t.update({
-        "church_name": church_name, "church_name_full": church_name,
-        "denomination": en.get("denomination") or texts["denomination"], "senior_pastor_short": pastor_short,
+        "church_name": church_name,
+        "church_name_full": f"{church_name} - {denomination}" if denomination else church_name,
+        "denomination": denomination, "senior_pastor_short": pastor_short,
         "footer_address": address, "map_address": tenant.get("address", ""),
         "info_location_val": (en.get("location_short") if lang == "en" else texts["location_short"]) or address,
         "footer_copyright": f"&copy; 2026 {church}. All rights reserved.",
