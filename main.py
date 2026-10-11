@@ -13,7 +13,7 @@ import secrets
 import shutil
 import re
 import os
-from typing import Optional, List
+from typing import Optional, List, Union
 from urllib.parse import urlencode
 from pydantic import BaseModel
 from markupsafe import escape
@@ -375,6 +375,11 @@ def get_current_user(request: Request) -> Optional[dict]:
         return None
     return session
 
+
+# 여러 장 업로드 칸: 브라우저는 파일을 안 고르면 filename="" 인 빈 칸을 보내고,
+# Starlette 는 이를 문자열 "" 로 넘긴다. List[UploadFile] 로 받으면 422 가 나서
+# 이미지 없이 저장(특히 "수정")이 막히므로 문자열도 받아 두고 루프에서 걸러 낸다.
+ImageUploads = List[Union[UploadFile, str]]
 
 ADMIN_ROLES = {"owner", "admin"}
 MANAGER_ROLES = {"owner", "admin", "manager"}
@@ -1370,7 +1375,7 @@ async def ai_draft_news(body: NewsDraftRequest, user: dict = Depends(require_man
 async def create_news(
     request: Request,
     title: str = Form(...), content: str = Form(...),
-    images: List[UploadFile] = File(default=[]),
+    images: ImageUploads = File(default=[]),
     user: dict = Depends(require_manager),
 ):
     tenant_id = user["tenant_id"]
@@ -1429,7 +1434,7 @@ async def edit_news_form(request: Request, news_id: int, user: dict = Depends(re
 async def update_news(
     request: Request, news_id: int,
     title: str = Form(...), content: str = Form(""), date: str = Form(""),
-    images: List[UploadFile] = File(default=[]),
+    images: ImageUploads = File(default=[]),
     remove_images: List[str] = Form(default=[]),
     user: dict = Depends(require_manager),
 ):
@@ -1763,7 +1768,7 @@ async def delete_member(member_id: int, user: dict = Depends(require_admin)):
 @app.post("/admin/pastoral/create")
 async def create_pastoral(
     request: Request, title: str = Form(...), content: str = Form(...),
-    images: List[UploadFile] = File(default=[]),
+    images: ImageUploads = File(default=[]),
     user: dict = Depends(require_manager),
 ):
     tenant_id = user["tenant_id"]
@@ -1799,7 +1804,7 @@ async def create_pastoral(
 async def update_pastoral(
     request: Request, post_id: int,
     title: str = Form(...), content: str = Form(...),
-    images: List[UploadFile] = File(default=[]),
+    images: ImageUploads = File(default=[]),
     user: dict = Depends(require_manager),
 ):
     tenant_id = user["tenant_id"]
