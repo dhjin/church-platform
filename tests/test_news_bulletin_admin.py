@@ -106,3 +106,35 @@ def test_admin_page_renders_with_many_news(client, db):
     r = c.get("/admin")
     assert r.status_code == 200
     assert 'class="admin-quicknav"' in r.text and 'id="news"' in r.text
+
+
+def test_edit_without_choosing_files_like_a_browser(client, db):
+    """브라우저는 파일을 안 골라도 filename="" 인 빈 파일 칸을 함께 보낸다."""
+    c, tid = client
+    with db.cursor() as cur:
+        cur.execute("INSERT INTO bulletins (tenant_id, title, date, image_path) VALUES (%s,'주보','2026-10-04','/uploads/x.png') RETURNING id", (tid,))
+        bid = cur.fetchone()[0]
+        cur.execute("INSERT INTO news (tenant_id, title, content, date, author) VALUES (%s,'소식','','2026-10-04','boss') RETURNING id", (tid,))
+        nid = cur.fetchone()[0]
+    db.commit()
+    empty = ("", io.BytesIO(b""), "application/octet-stream")
+    r = c.post(f"/admin/bulletin/update/{bid}", data={"title": "고친 주보", "date": "2026-10-05"},
+               files={"image": empty}, follow_redirects=False)
+    assert r.status_code == 303, r.text
+    r = c.post(f"/admin/news/update/{nid}", data={"title": "고친 소식", "content": "", "date": "2026-10-04"},
+               files=[("images", empty)], follow_redirects=False)
+    assert r.status_code == 303, r.text
+    with db.cursor() as cur:
+        cur.execute("SELECT title, date::text, image_path FROM bulletins WHERE id=%s", (bid,))
+        assert cur.fetchone() == ("고친 주보", "2026-10-05", "/uploads/x.png")
+        cur.execute("SELECT title FROM news WHERE id=%s", (nid,))
+        assert cur.fetchone()[0] == "고친 소식"
+
+
+def test_create_news_and_pastoral_without_images(client, db):
+    c, tid = client
+    empty = ("", io.BytesIO(b""), "application/octet-stream")
+    r = c.post("/admin/news/create", data={"title": "글만", "content": "본문"}, files=[("images", empty)], follow_redirects=False)
+    assert r.status_code == 303, r.text
+    r = c.post("/admin/pastoral/create", data={"title": "목양", "content": "본문"}, files=[("images", empty)], follow_redirects=False)
+    assert r.status_code in (302, 303), r.text
