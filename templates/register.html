@@ -163,6 +163,10 @@
             {% endif %}
 
             <form method="POST" action="{{ lp }}/register">
+                <div style="position:absolute;left:-9999px" aria-hidden="true">
+                    <label for="website">Website</label>
+                    <input type="text" id="website" name="website" tabindex="-1" autocomplete="off">
+                </div>
                 <div class="form-group">
                     <label for="name">{{ t.register_name }}</label>
                     <input type="text" id="name" name="name" value="{{ name or '' }}" required autofocus>

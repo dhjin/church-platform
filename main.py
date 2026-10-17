@@ -29,6 +29,7 @@ from billing import service as billing
 from billing.providers import BillingProviderError, configured_providers
 import site_config
 import access_log
+import signup_guard
 
 load_dotenv()
 
@@ -140,6 +141,9 @@ TRANSLATIONS = {
         "err_email_invalid": "올바른 이메일 주소를 입력하세요.",
         "err_username_taken": "이미 사용 중인 아이디입니다.",
         "err_email_taken": "이미 사용 중인 이메일입니다.",
+        "err_signup_blocked": "이 이메일로는 가입할 수 없습니다.",
+        "err_signup_rate": "가입 요청이 너무 많습니다. 잠시 후 다시 시도해 주세요.",
+        "login_pending": "관리자 승인을 기다리는 계정입니다. 승인 후 로그인할 수 있습니다.",
     },
     "en": {
         "lang": "en", "lang_name": "English", "other_lang": "ko", "other_lang_name": "한국어",
@@ -209,6 +213,9 @@ TRANSLATIONS = {
         "err_email_invalid": "Please enter a valid email address.",
         "err_username_taken": "This username is already taken.",
         "err_email_taken": "This email is already in use.",
+        "err_signup_blocked": "This email cannot be used to sign up.",
+        "err_signup_rate": "Too many sign-up attempts. Please try again later.",
+        "login_pending": "Your account is waiting for admin approval.",
     },
 }
 
@@ -997,15 +1004,27 @@ async def register_page_en(request: Request):
     return templates.TemplateResponse(request, "register.html", {"t": get_t("en", request), "lp": "/en"})
 
 
-async def _register_post(request: Request, lang: str, name: str, email: str):
+def _signup_locked(role: str, username: str) -> bool:
+    """승인 대기 계정, 또는 차단 도메인으로 가입한 일반 계정은 로그인·댓글을 막는다."""
+    return role == "pending" or (role == "user" and signup_guard.is_blocked_email(username or ""))
+
+
+async def _register_post(request: Request, lang: str, name: str, email: str, website: str = ""):
     tenant_id = request.state.tenant["id"]
     t = get_t(lang, request)
     lp = get_lang_prefix(lang)
+    email = email.strip()
     errors = []
     if len(name.strip()) < 2:
         errors.append(t["err_name_short"])
     if not re.match(r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$", email):
         errors.append(t["err_email_invalid"])
+    elif signup_guard.is_honeypot_filled(website) or signup_guard.is_blocked_email(email):
+        access_log.record(request, "register_blocked", status=200, username=email[:100])
+        errors.append(t["err_signup_blocked"])
+    elif not signup_guard.signup_limiter.allow(f"{tenant_id}:{access_log.client_ip(request)}"):
+        access_log.record(request, "register_blocked", status=429, username=email[:100])
+        errors.append(t["err_signup_rate"])
     if errors:
         return templates.TemplateResponse(request, "register.html", {"errors": errors, "t": t, "lp": lp, "name": name, "email": email})
     conn = get_conn()
@@ -1017,27 +1036,31 @@ async def _register_post(request: Request, lang: str, name: str, email: str):
         return templates.TemplateResponse(request, "register.html", {"errors": [t["err_email_taken"]], "t": t, "lp": lp, "name": name, "email": email})
     temp_pw = secrets.token_urlsafe(8)
     cur.execute(
-        "INSERT INTO users (tenant_id, username, password, role, name, email, created_at) VALUES (%s, %s, %s, 'user', %s, %s, NOW())",
+        # 새 계정은 승인 대기(pending). 담임(owner)이 사용자 관리에서 User 로 바꿔야 로그인된다.
+        "INSERT INTO users (tenant_id, username, password, role, name, email, created_at) VALUES (%s, %s, %s, 'pending', %s, %s, NOW())",
         (tenant_id, email, hash_password(temp_pw), name.strip(), email),
     )
     conn.commit()
     cur.close()
     conn.close()
+    access_log.record(request, "register", status=200, username=email[:100])
     if lang == "ko":
-        msg = f"가입이 완료되었습니다. 임시 비밀번호: <b>{temp_pw}</b><br>로그인 후 비밀번호를 변경해 주세요."
+        msg = (f"가입 신청이 접수되었습니다. 임시 비밀번호: <b>{temp_pw}</b><br>"
+               "관리자 승인 후 로그인할 수 있습니다. 로그인 후 비밀번호를 변경해 주세요.")
     else:
-        msg = f"Registration successful. Temporary password: <b>{temp_pw}</b><br>Please change your password after logging in."
+        msg = (f"Sign-up request received. Temporary password: <b>{temp_pw}</b><br>"
+               "You can log in after an admin approves your account. Please change your password after logging in.")
     return templates.TemplateResponse(request, "login.html", {"t": t, "lp": lp, "success": msg})
 
 
 @app.post("/register")
-async def register(request: Request, name: str = Form(...), email: str = Form(...)):
-    return await _register_post(request, "ko", name, email)
+async def register(request: Request, name: str = Form(...), email: str = Form(...), website: str = Form("")):
+    return await _register_post(request, "ko", name, email, website)
 
 
 @app.post("/en/register")
-async def register_en(request: Request, name: str = Form(...), email: str = Form(...)):
-    return await _register_post(request, "en", name, email)
+async def register_en(request: Request, name: str = Form(...), email: str = Form(...), website: str = Form("")):
+    return await _register_post(request, "en", name, email, website)
 
 
 async def _login_post(request: Request, lang: str, username: str, password: str):
@@ -1070,6 +1093,11 @@ async def _login_post(request: Request, lang: str, username: str, password: str)
         conn.close()
         access_log.record(request, "login_fail", status=200, username=username[:100])
         return templates.TemplateResponse(request, "login.html", {"error": t["login_error"], "t": t, "lp": lp})
+    if _signup_locked(row[3], row[1]):
+        cur.close()
+        conn.close()
+        access_log.record(request, "login_fail", status=403, username=username[:100])
+        return templates.TemplateResponse(request, "login.html", {"error": t["login_pending"], "t": t, "lp": lp})
 
     token = secrets.token_urlsafe(32)
     tenant_info = request.state.tenant or {}
@@ -1117,6 +1145,8 @@ async def create_news_comment(request: Request, news_id: int, content: str = For
     user = get_current_user(request)
     if not user:
         raise HTTPException(401, "로그인이 필요합니다.")
+    if _signup_locked(user["role"], user["username"]):
+        raise HTTPException(403, "관리자 승인 후 댓글을 쓸 수 있습니다.")
     if not content.strip():
         return RedirectResponse(url=f"/news/{news_id}", status_code=303)
     conn = get_conn()
@@ -1136,6 +1166,8 @@ async def create_pastoral_comment(request: Request, post_id: int, content: str =
     user = get_current_user(request)
     if not user:
         raise HTTPException(401, "로그인이 필요합니다.")
+    if _signup_locked(user["role"], user["username"]):
+        raise HTTPException(403, "관리자 승인 후 댓글을 쓸 수 있습니다.")
     if not content.strip():
         return RedirectResponse(url=f"/pastoral/{post_id}", status_code=303)
     conn = get_conn()
@@ -1172,6 +1204,9 @@ async def delete_comment(request: Request, comment_id: int, redirect: str = "/")
     conn.commit()
     cur.close()
     conn.close()
+    # 같은 사이트 안 경로로만 돌려보낸다(외부 주소로 보내는 open redirect 방지)
+    if not redirect.startswith("/") or redirect.startswith("//") or "\\" in redirect:
+        redirect = "/"
     return RedirectResponse(url=redirect, status_code=303)
 
 
@@ -1256,6 +1291,13 @@ async def admin_dashboard(request: Request, user: dict = Depends(require_manager
 
 # ─── Admin: User management (owner only) ─────────────────────────────────────
 
+def _drop_sessions(tenant_id: int, user_id: int) -> None:
+    """역할 변경·삭제된 계정의 로그인 세션을 바로 끊는다(다시 로그인해야 새 역할이 적용됨)."""
+    for token, s in list(sessions.items()):
+        if s.get("tenant_id") == tenant_id and s.get("id") == user_id:
+            sessions.pop(token, None)
+
+
 @app.post("/admin/users/invite")
 async def create_site_user(
     request: Request,
@@ -1291,16 +1333,17 @@ async def change_user_role(
     user: dict = Depends(require_owner),
 ):
     tenant_id = user["tenant_id"]
-    if role not in ("admin", "manager", "user"):
+    if role not in ("admin", "manager", "user", "pending"):
         raise HTTPException(400, "유효하지 않은 역할입니다.")
     if user_id == user["id"]:
         raise HTTPException(400, "자기 자신의 역할은 변경할 수 없습니다.")
     conn = get_conn()
     cur = conn.cursor()
-    cur.execute("UPDATE users SET role=%s WHERE id=%s AND tenant_id=%s", (role, user_id, tenant_id))
+    cur.execute("UPDATE users SET role=%s WHERE id=%s AND tenant_id=%s AND role != 'owner'", (role, user_id, tenant_id))
     conn.commit()
     cur.close()
     conn.close()
+    _drop_sessions(tenant_id, user_id)
     return RedirectResponse(url="/admin#users", status_code=303)
 
 
@@ -1313,6 +1356,7 @@ async def delete_site_user(user_id: int, user: dict = Depends(require_owner)):
     cur = conn.cursor()
     cur.execute("DELETE FROM users WHERE id=%s AND tenant_id=%s AND role != 'owner'", (user_id, tenant_id))
     conn.commit()
+    _drop_sessions(tenant_id, user_id)
     cur.close()
     conn.close()
     return RedirectResponse(url="/admin#users", status_code=303)
