@@ -959,15 +959,17 @@
                             <thead><tr style="background:#f8f9fa">
                                 <th style="padding:8px;text-align:left;border-bottom:1px solid #eee">아이디</th>
                                 <th style="padding:8px;text-align:left;border-bottom:1px solid #eee">이름</th>
+                                <th style="padding:8px;text-align:left;border-bottom:1px solid #eee">이메일</th>
                                 <th style="padding:8px;text-align:left;border-bottom:1px solid #eee">역할</th>
                                 <th style="padding:8px;text-align:left;border-bottom:1px solid #eee">가입일</th>
                                 <th style="padding:8px;border-bottom:1px solid #eee">관리</th>
                             </tr></thead>
                             <tbody>
                             {% for u in site_users %}
-                            <tr style="border-bottom:1px solid #f0f0f0">
+                            <tr style="border-bottom:1px solid #f0f0f0{% if u.role == 'pending' %};background:#fff8e1{% endif %}">
                                 <td style="padding:8px">{{ u.username }}</td>
                                 <td style="padding:8px">{{ u.name }}</td>
+                                <td style="padding:8px;color:#666;font-size:.82rem">{{ u.email or '' }}</td>
                                 <td style="padding:8px">
                                     {% if u.role == 'owner' %}
                                     <span style="background:#7c3aed;color:#fff;font-size:.72rem;padding:2px 8px;border-radius:10px">OWNER</span>
@@ -979,6 +981,7 @@
                                             <option value="admin" {% if u.role=='admin' %}selected{% endif %}>Admin</option>
                                             <option value="manager" {% if u.role=='manager' %}selected{% endif %}>Manager</option>
                                             <option value="user" {% if u.role=='user' %}selected{% endif %}>User</option>
+                                            <option value="pending" {% if u.role=='pending' %}selected{% endif %}>승인 대기</option>
                                         </select>
                                     </form>
                                     {% endif %}

@@ -13,7 +13,8 @@ from database import get_conn
 KST = timezone(timedelta(hours=9))
 RETENTION_DAYS = 90
 PER_PAGE = 100
-EVENTS = {"page": "조회", "login": "로그인", "login_fail": "로그인 실패", "logout": "로그아웃"}
+EVENTS = {"page": "조회", "login": "로그인", "login_fail": "로그인 실패", "logout": "로그아웃",
+          "register": "가입 신청", "register_blocked": "가입 차단"}
 BOT_UA_RE = re.compile(
     r"bot|crawl|spider|slurp|facebookexternalhit|preview|monitor|curl|wget|python-requests|httpx|go-http", re.I
 )
