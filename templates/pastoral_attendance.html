@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>출석 체크 — 목양 플래너</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Segoe UI',sans-serif;background:#0f172a;color:#e2e8f0;min-height:100vh}
+header{background:#1e293b;border-bottom:1px solid #334155;padding:12px 24px;display:flex;align-items:center;gap:16px;flex-wrap:wrap}
+.logo{font-size:1rem;font-weight:700;color:#c7d2fe}
+header a{color:#94a3b8;font-size:.85rem;text-decoration:none;white-space:nowrap}
+@media(max-width:700px){header{padding:12px 16px;gap:12px}}
+.main{max-width:900px;margin:0 auto;padding:28px 20px 100px}
+.page-title{font-size:1.2rem;font-weight:700;margin-bottom:16px;color:#f1f5f9}
+.toolbar{display:flex;gap:8px;align-items:center;margin-bottom:16px;flex-wrap:wrap}
+.toolbar select,.toolbar input{padding:9px 12px;background:#1e293b;border:1.5px solid #334155;border-radius:8px;color:#f1f5f9;font-size:.88rem;outline:none}
+.btn{padding:9px 18px;border-radius:8px;border:none;cursor:pointer;font-size:.85rem;font-weight:600;text-decoration:none;display:inline-block}
+.btn-primary{background:#6366f1;color:#fff}
+.btn-ghost{background:transparent;border:1px solid #334155;color:#94a3b8}
+.btn-sm{padding:5px 10px;font-size:.78rem}
+.saved{background:#064e3b;color:#6ee7b7;border-radius:8px;padding:10px 14px;font-size:.85rem;margin-bottom:16px}
+.group{background:#1e293b;border:1px solid #334155;border-radius:12px;padding:16px;margin-bottom:12px}
+.group-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}
+.group-head h2{font-size:.9rem;color:#94a3b8}
+.people{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:8px}
+.person{display:flex;align-items:center;gap:8px;padding:10px 12px;background:#0f172a;border:1.5px solid #334155;border-radius:8px;cursor:pointer;font-size:.9rem;user-select:none}
+.person input{width:18px;height:18px;accent-color:#6366f1}
+.person:has(input:checked){border-color:#6366f1;background:#1e1b4b}
+.savebar{position:fixed;left:0;right:0;bottom:0;background:#1e293b;border-top:1px solid #334155;padding:12px 16px;display:flex;justify-content:center;align-items:center;gap:16px}
+.count{font-size:.9rem;color:#c7d2fe}
+.history{margin-top:24px;background:#1e293b;border:1px solid #334155;border-radius:12px;padding:16px}
+.history h2{font-size:.9rem;color:#94a3b8;margin-bottom:10px}
+.history table{width:100%;border-collapse:collapse;font-size:.85rem}
+.history td{padding:6px 4px;border-top:1px solid #334155}
+.history a{color:#818cf8;text-decoration:none}
+.empty{text-align:center;padding:32px;color:#475569;font-size:.88rem}
+</style>
+</head>
+<body>
+<header>
+  <div class="logo">✝ 출석 체크</div>
+  <a href="/planner/dashboard">← 대시보드</a>
+  <a href="/planner/donations">기부금</a>
+</header>
+
+<div class="main">
+  <form class="toolbar" method="GET" action="/planner/attendance">
+    <input type="date" name="date" value="{{ service_date }}" onchange="this.form.submit()">
+    <select name="type" onchange="this.form.submit()">
+      {% for t in service_types %}<option value="{{ t }}" {% if t == service_type %}selected{% endif %}>{{ t }}</option>{% endfor %}
+    </select>
+  </form>
+
+  {% if saved %}<div class="saved">✅ {{ service_date }} {{ service_type }} 출석을 저장했습니다.</div>{% endif %}
+
+  {% if groups %}
+  <form method="POST" action="/planner/attendance/save" id="attForm">
+    <input type="hidden" name="service_date" value="{{ service_date }}">
+    <input type="hidden" name="service_type" value="{{ service_type }}">
+    {% for g, people in groups.items() %}
+    <div class="group">
+      <div class="group-head">
+        <h2>{{ g }} ({{ people|length }}명)</h2>
+        <button type="button" class="btn btn-ghost btn-sm" onclick="checkGroup(this)">모두 출석</button>
+      </div>
+      <div class="people">
+        {% for p in people %}
+        <label class="person"><input type="checkbox" name="member_ids" value="{{ p.id }}" {% if p.present %}checked{% endif %} onchange="updateCount()">{{ p.name }}</label>
+        {% endfor %}
+      </div>
+    </div>
+    {% endfor %}
+    <div class="savebar">
+      <span class="count" id="count">{{ present_count }} / {{ total }}명 출석</span>
+      <button type="submit" class="btn btn-primary">저장</button>
+    </div>
+  </form>
+  {% else %}
+  <div class="empty">활성 성도가 없습니다.<br><a href="/planner/members/new" style="color:#818cf8">+ 성도 등록</a></div>
+  {% endif %}
+
+  <div class="history">
+    <h2>최근 {{ service_type }} 출석</h2>
+    {% if history %}
+    <table>
+      {% for h in history %}
+      <tr><td><a href="/planner/attendance?date={{ h.date }}&type={{ service_type|urlencode }}">{{ h.date }}</a></td><td style="text-align:right">{{ h.count }}명</td></tr>
+      {% endfor %}
+    </table>
+    {% else %}
+    <div class="empty">아직 기록이 없습니다.</div>
+    {% endif %}
+  </div>
+</div>
+
+<script>
+const TOTAL = {{ total }};
+function updateCount() {
+  const n = document.querySelectorAll('input[name="member_ids"]:checked').length;
+  document.getElementById('count').textContent = `${n} / ${TOTAL}명 출석`;
+}
+function checkGroup(btn) {
+  btn.closest('.group').querySelectorAll('input[type=checkbox]').forEach(c => c.checked = true);
+  updateCount();
+}
+</script>
+</body>
+</html>
