@@ -7,7 +7,9 @@
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 body{font-family:'Segoe UI',sans-serif;background:#0f172a;color:#e2e8f0;min-height:100vh}
-header{background:#1e293b;border-bottom:1px solid #334155;padding:12px 24px;display:flex;align-items:center;gap:16px}
+header{background:#1e293b;border-bottom:1px solid #334155;padding:12px 24px;display:flex;align-items:center;gap:16px;flex-wrap:wrap}
+header a{white-space:nowrap}
+@media(max-width:700px){header{padding:12px 16px;gap:12px}}
 .logo{font-size:1rem;font-weight:700;color:#c7d2fe}
 header a{color:#94a3b8;font-size:.85rem;text-decoration:none}
 .main{max-width:860px;margin:0 auto;padding:28px 20px 60px}
@@ -58,6 +60,7 @@ header a{color:#94a3b8;font-size:.85rem;text-decoration:none}
 <header>
   <div class="logo">✝</div>
   <a href="/planner/dashboard">← 대시보드</a>
+  <a href="/planner/attendance">출석</a>
   <a href="/planner/members">성도 목록</a>
 </header>
 
@@ -85,6 +88,8 @@ header a{color:#94a3b8;font-size:.85rem;text-decoration:none}
       <div class="info-item"><label>등록일</label><span>{{ member.join_date or '—' }}</span></div>
       <div class="info-item"><label>세례일</label><span>{{ member.baptism_date or '—' }}</span></div>
       <div class="info-item"><label>최근 접촉일</label><span id="lastContact">{{ member.last_contact_date or '—' }}</span></div>
+      <div class="info-item"><label>최근 출석</label><span>{{ member.last_attended or '—' }}</span></div>
+      <div class="info-item"><label>최근 주일 8번 중 출석</label><span>{{ member.sunday_count_8 }}번</span></div>
       <div class="info-item"><label>주소</label><span>{{ member.address or '—' }}</span></div>
     </div>
     {% if member.notes %}

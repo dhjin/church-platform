@@ -10,12 +10,12 @@ body{font-family:'Segoe UI',sans-serif;background:#0f172a;color:#e2e8f0;min-heig
 header{background:#1e293b;border-bottom:1px solid #334155;padding:12px 24px;display:flex;align-items:center;justify-content:space-between}
 .logo{font-size:1rem;font-weight:700;color:#c7d2fe}
 .nav-links{display:flex;gap:16px;align-items:center}
-.nav-links a{color:#94a3b8;font-size:.85rem;text-decoration:none}
+.nav-links a{color:#94a3b8;font-size:.85rem;text-decoration:none;white-space:nowrap}
 .nav-links a:hover,.nav-links a.active{color:#e2e8f0}
 .main{max-width:1100px;margin:0 auto;padding:28px 20px 60px}
 .page-title{font-size:1.3rem;font-weight:700;margin-bottom:24px;color:#f1f5f9}
 .grid{display:grid;grid-template-columns:1fr 1fr;gap:20px}
-@media(max-width:700px){.grid{grid-template-columns:1fr}}
+@media(max-width:700px){.grid{grid-template-columns:1fr}header{flex-wrap:wrap;gap:8px;padding:12px 16px}.nav-links{width:100%;overflow-x:auto;gap:14px;padding-bottom:2px}}
 .card{background:#1e293b;border-radius:12px;padding:24px;border:1px solid #334155}
 .card h2{font-size:.95rem;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:.05em;margin-bottom:16px}
 .alert-list{display:flex;flex-direction:column;gap:8px}
@@ -63,6 +63,7 @@ header{background:#1e293b;border-bottom:1px solid #334155;padding:12px 24px;disp
   <div class="nav-links">
     <a href="/planner/dashboard" class="active">대시보드</a>
     <a href="/planner/members">성도 관리</a>
+    <a href="/planner/attendance">출석</a>
     <a href="/planner/donations">기부금</a>
     <a href="/admin">어드민</a>
     <a href="/logout">로그아웃</a>
@@ -94,6 +95,25 @@ header{background:#1e293b;border-bottom:1px solid #334155;padding:12px 24px;disp
       </div>
       {% else %}
       <div class="empty">3개월 이상 미접촉 성도가 없습니다 🙏</div>
+      {% endif %}
+    </div>
+
+    <div class="card">
+      <h2>🚶 장기 결석 — 최근 주일예배 3번 연속</h2>
+      {% if absences %}
+      <div class="alert-list">
+        {% for a in absences %}
+        <div class="alert-item">
+          <div>
+            <div class="name">{{ a.name }}</div>
+            <div class="days">마지막 출석 {{ a.last_attended }} · {{ a.cell_group or '셀 미지정' }}</div>
+          </div>
+          <a href="/planner/members/{{ a.id }}">보기 →</a>
+        </div>
+        {% endfor %}
+      </div>
+      {% else %}
+      <div class="empty">연속 결석한 성도가 없습니다.<br><a href="/planner/attendance" style="color:#818cf8">출석 체크하기 →</a></div>
       {% endif %}
     </div>
 

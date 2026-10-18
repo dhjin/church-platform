@@ -370,3 +370,15 @@ CREATE TABLE IF NOT EXISTS legacy_post_ids (
     new_id INTEGER NOT NULL,
     PRIMARY KEY (tenant_id, kind, old_id)
 );
+
+-- 출석 기록: 성도별·날짜별·예배별 한 줄. 출석한 사람만 저장한다.
+CREATE TABLE IF NOT EXISTS attendance_records (
+    id SERIAL PRIMARY KEY,
+    tenant_id INTEGER NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+    member_id INTEGER NOT NULL REFERENCES congregation_members(id) ON DELETE CASCADE,
+    service_date DATE NOT NULL,
+    service_type TEXT NOT NULL DEFAULT '주일예배',
+    created_at TIMESTAMP DEFAULT NOW(),
+    UNIQUE (tenant_id, member_id, service_date, service_type)
+);
+CREATE INDEX IF NOT EXISTS idx_attendance_tenant_date ON attendance_records(tenant_id, service_date DESC);
