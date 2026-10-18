@@ -2880,7 +2880,7 @@ async def pastoral_dashboard(request: Request, user: dict = Depends(require_plan
     return templates.TemplateResponse(request, "pastoral_dashboard.html", {
         "tenant": {"church_name": user.get("church_name", "")},
         "members": members, "alerts": alerts, "e2ee_salt": salt, "absences": absences,
-        "care_recs": care_recs, "care_source": care_source,
+        "care_recs": care_recs, "care_ai": care_source == "Jev",  # 외부 모델 이름은 화면에 내보내지 않는다
         "is_first_setup": is_first,
         "stats": {"total": total, "active": active, "alerts": len(alerts), "counseling": counsel_count},
     })

@@ -32,7 +32,7 @@ PLANS = {
         "ai_designs_per_month": int(os.getenv("PLAN_PREMIUM_AI_DESIGNS", "30")),
         "custom_requests": True,
         "features": ["플러스 전체", "AI 맞춤 디자인 월 30회", "전문가 검수 맞춤 제작 요청",
-                     "목양 플래너 (성도·상담일지·출석·기부금, Jev 연락 추천)"],
+                     "목양 플래너 (성도·상담일지·출석·기부금, AI 연락 추천)"],
     },
 }
 PLAN_ORDER = ["standard", "plus", "premium"]

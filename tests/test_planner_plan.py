@@ -73,3 +73,14 @@ def test_upgrade_page_needs_owner(owner):
     c, _ = owner
     c.cookies.clear()
     assert c.get("/planner/upgrade").status_code == 403
+
+
+def test_dashboard_never_names_the_model(owner, db, monkeypatch):
+    import care_decision
+    c, tid = owner
+    _set_plan(db, tid, "premium")
+    page = c.get("/planner/dashboard").text
+    assert "Jev" not in page and "AI 분석" not in page  # 기본 규칙일 때는 표시 없음
+    monkeypatch.setattr(care_decision, "recommend", lambda members, today: ([], "Jev"))
+    page = c.get("/planner/dashboard").text
+    assert "AI 분석" in page and "Jev" not in page
