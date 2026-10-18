@@ -55,6 +55,13 @@ header{background:#1e293b;border-bottom:1px solid #334155;padding:12px 24px;disp
 .lock-card .err{color:#f87171;font-size:.82rem;margin-top:8px;display:none}
 .recovery-hint{font-size:.78rem;color:#475569;margin-top:12px}
 .recovery-hint a{color:#818cf8;cursor:pointer}
+.care-list{display:flex;flex-direction:column;gap:8px}
+.care-item{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 14px;background:#0f172a;border-radius:8px;border-left:3px solid #6366f1}
+.care-item .name{font-size:.9rem;font-weight:600}
+.care-item .reasons{display:flex;flex-wrap:wrap;gap:4px;margin-top:4px}
+.care-item .reason{font-size:.72rem;padding:2px 8px;border-radius:10px;background:#312e81;color:#c7d2fe}
+.care-item .actions{display:flex;gap:6px;flex-shrink:0}
+.care-source{font-size:.72rem;color:#64748b;text-transform:none;letter-spacing:0;font-weight:400;margin-left:6px}
 </style>
 </head>
 <body>
@@ -79,6 +86,28 @@ header{background:#1e293b;border-bottom:1px solid #334155;padding:12px 24px;disp
   </div>
 
   <div class="grid">
+    <div class="card section-full">
+      <h2>🙏 이번 주 연락 추천<span class="care-source">판단: {{ care_source }}</span></h2>
+      {% if care_recs %}
+      <div class="care-list">
+        {% for r in care_recs %}
+        <div class="care-item" id="care-{{ r.id }}">
+          <div>
+            <div class="name">{{ r.name }} <span class="meta" style="font-size:.75rem;color:#64748b;font-weight:400">{{ r.cell_group or '셀 미지정' }}{% if r.phone %} · {{ r.phone }}{% endif %}</span></div>
+            <div class="reasons">{% for why in r.reasons %}<span class="reason">{{ why }}</span>{% endfor %}</div>
+          </div>
+          <div class="actions">
+            <button class="btn btn-ghost btn-sm" onclick="markCareContact({{ r.id }})">연락함</button>
+            <a href="/planner/members/{{ r.id }}" class="btn btn-ghost btn-sm">보기</a>
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+      {% else %}
+      <div class="empty">이번 주 따로 챙길 성도가 없습니다 🙏</div>
+      {% endif %}
+    </div>
+
     <div class="card">
       <h2>🔔 돌봄 알림 — 3개월 이상 미접촉</h2>
       {% if alerts %}
@@ -157,6 +186,13 @@ header{background:#1e293b;border-bottom:1px solid #334155;padding:12px 24px;disp
 </div>
 
 <script>
+async function markCareContact(id) {
+  const res = await fetch(`/api/planner/members/${id}/contact`, {method:'POST'});
+  if (res.ok) {
+    const el = document.getElementById(`care-${id}`);
+    if (el) el.remove();
+  }
+}
 const SALT_HEX = "{{ e2ee_salt }}";
 const IS_FIRST_SETUP = {{ 'true' if is_first_setup else 'false' }};
 

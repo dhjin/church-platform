@@ -31,6 +31,7 @@ import site_config
 import access_log
 import signup_guard
 import attendance
+import care_decision
 
 load_dotenv()
 
@@ -2818,10 +2819,15 @@ async def pastoral_dashboard(request: Request, user: dict = Depends(require_owne
     conn = get_conn()
     cur = conn.cursor()
     cur.execute(
-        "SELECT id, name, cell_group, phone, status, last_contact_date FROM congregation_members WHERE tenant_id=%s ORDER BY name",
+        "SELECT id, name, cell_group, phone, status, last_contact_date, birth_date, join_date, baptism_date"
+        " FROM congregation_members WHERE tenant_id=%s ORDER BY name",
         (tenant_id,),
     )
-    members = [{"id": r[0], "name": r[1], "cell_group": r[2], "phone": r[3], "status": r[4], "last_contact_date": r[5]} for r in cur.fetchall()]
+    members = [
+        {"id": r[0], "name": r[1], "cell_group": r[2], "phone": r[3], "status": r[4], "last_contact_date": r[5],
+         "birth_date": r[6], "join_date": r[7], "baptism_date": r[8]}
+        for r in cur.fetchall()
+    ]
 
     from datetime import date
     today = date.today()
@@ -2843,9 +2849,14 @@ async def pastoral_dashboard(request: Request, user: dict = Depends(require_owne
     absences = _long_absences(cur, tenant_id, members)
     cur.close(); conn.close()
 
+    recs, care_source = await run_in_threadpool(care_decision.recommend, members, today)
+    by_id = {m["id"]: m for m in members}
+    care_recs = [{**by_id[r.member_id], "reasons": r.reasons} for r in recs if r.member_id in by_id]
+
     return templates.TemplateResponse(request, "pastoral_dashboard.html", {
         "tenant": {"church_name": user.get("church_name", "")},
         "members": members, "alerts": alerts, "e2ee_salt": salt, "absences": absences,
+        "care_recs": care_recs, "care_source": care_source,
         "is_first_setup": is_first,
         "stats": {"total": total, "active": active, "alerts": len(alerts), "counseling": counsel_count},
     })
