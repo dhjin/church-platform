@@ -28,7 +28,20 @@
 .admin-user-info {
     display: flex;
     align-items: center;
-    gap: 1rem;
+    flex-wrap: wrap;
+    gap: 8px 1rem;
+}
+
+.admin-user-info a,
+.admin-user-info span {
+    white-space: nowrap;
+}
+
+.admin-links {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px 14px;
 }
 
 .admin-user-info span {
@@ -59,7 +72,9 @@
 }
 
 .admin-section {
-    margin-bottom: 3rem;
+    /* style.css 의 공용 section 여백(56px 14px)이 어드민에 끼어들지 않게 한다 */
+    padding: 0;
+    margin-bottom: 2.5rem;
 }
 
 .section-title {
@@ -96,7 +111,13 @@
 }
 
 .form-group input[type="text"],
+.form-group input[type="url"],
+.form-group input[type="email"],
+.form-group input[type="password"],
+.form-group input[type="number"],
+.form-group input[type="date"],
 .form-group input[type="file"],
+.form-group select,
 .form-group textarea {
     width: 100%;
     padding: 12px;
@@ -108,9 +129,14 @@
 }
 
 .form-group input:focus,
+.form-group select:focus,
 .form-group textarea:focus {
     outline: none;
     border-color: var(--primary-color);
+}
+
+.form-group select {
+    background-color: #fff;
 }
 
 .form-group textarea {
@@ -207,27 +233,135 @@
     font-size: 1.1rem;
 }
 
+/* 한 줄에 여러 칸을 놓는 입력 폼. 칸 너비는 style="--cols: ..." 로 준다 */
+.form-grid {
+    display: grid;
+    grid-template-columns: var(--cols, 1fr);
+    gap: 8px;
+    align-items: end;
+}
+
+.form-grid > * {
+    min-width: 0;
+}
+
+.form-grid label {
+    font-size: 0.9rem;
+}
+
+.btn-danger {
+    padding: 6px 12px;
+    background-color: #dc3545;
+    color: white;
+    border: none;
+    border-radius: 6px;
+    font-size: 0.9rem;
+    cursor: pointer;
+}
+
+.btn-danger:hover {
+    background-color: #c82333;
+}
+
 /* Mobile Responsive */
 @media (max-width: 768px) {
+    .admin-header {
+        padding: 1rem 0;
+        margin-bottom: 1rem;
+    }
+
     .admin-nav {
         flex-direction: column;
         align-items: flex-start;
+        gap: 0.75rem;
     }
 
     .admin-nav h1 {
-        font-size: 1.4rem;
+        font-size: 1.3rem;
     }
 
     .admin-user-info {
         width: 100%;
-        justify-content: space-between;
+        gap: 8px 10px;
+    }
+
+    /* 메뉴 링크는 한 줄, 계정·버튼은 그 아래 한 줄 */
+    .admin-links {
+        width: 100%;
+    }
+
+    .admin-user-info .btn-logout,
+    .admin-user-info .btn-home {
+        padding: 6px 12px;
+        font-size: 0.85rem;
+    }
+
+    .admin-container {
+        padding: 0 0 2rem;
+    }
+
+    .admin-container > .container {
+        padding: 0 12px;
+    }
+
+    .section-title {
+        font-size: 1.35rem;
+        margin-bottom: 1rem;
     }
 
     .admin-card {
-        padding: 1.5rem;
+        padding: 1.25rem 1rem;
+        margin-bottom: 1rem;
+        border-radius: 10px;
     }
 
-    .admin-table {
+    .admin-card h3 {
+        font-size: 1.1rem;
+        margin-bottom: 1rem;
+    }
+
+    .form-group {
+        margin-bottom: 1rem;
+    }
+
+    .form-group input[type="text"],
+    .form-group input[type="url"],
+    .form-group input[type="email"],
+    .form-group input[type="password"],
+    .form-group input[type="number"],
+    .form-group input[type="date"],
+    .form-group input[type="file"],
+    .form-group select,
+    .form-group textarea {
+        padding: 10px;
+        font-size: 16px; /* iOS 가 입력칸을 누를 때 화면을 확대하지 않는 크기 */
+    }
+
+    /* 여러 칸 폼은 폰에서 한 칸씩 세로로 */
+    .form-grid {
+        grid-template-columns: 1fr;
+    }
+
+    /* style.css 는 폰에서 .btn 을 최대 300px 로 묶는다. 어드민 카드 안에서는 칸 너비에 맞춘다 */
+    .admin-card .btn {
+        max-width: none;
+    }
+
+    .form-grid .btn-primary,
+    .admin-card form > .btn-primary {
+        width: 100%;
+    }
+
+    .admin-card table .btn {
+        width: auto;
+    }
+
+    /* 표가 화면보다 넓으면 페이지 전체가 아니라 표만 옆으로 밀린다 */
+    .admin-card table {
+        display: block;
+        max-width: 100%;
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
         font-size: 0.9rem;
     }
 
@@ -236,13 +370,8 @@
         padding: 8px;
     }
 
-    /* Make table scrollable on mobile */
-    .news-list-admin {
-        overflow-x: auto;
-    }
-
-    .admin-table {
-        min-width: 600px;
+    .admin-section {
+        margin-bottom: 2rem;
     }
 }
 
@@ -352,7 +481,7 @@
     text-decoration: none;
 }
 .admin-quicknav a:hover { background: #1e3a5f; color: #fff; }
-.admin-section { scroll-margin-top: 64px; }
+.admin-section { scroll-margin-top: 72px; }
 
 /* 쌓인 목록: 검색칸과 더 보기 */
 .list-tools { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; flex-wrap: wrap; }
@@ -361,3 +490,24 @@
 .list-more-btn { display: block; width: 100%; margin-top: 10px; padding: 8px; border: 1px dashed #9ca3af; border-radius: 6px; background: #fff; color: #374151; cursor: pointer; font-size: .9rem; }
 .list-more-btn:hover { background: #f3f4f6; }
 .is-collapsed { display: none !important; }
+
+/* 폰: 바로가기 메뉴는 한 줄로 두고 옆으로 넘긴다(여러 줄이면 sticky 메뉴가 제목을 가린다).
+   위의 .admin-quicknav 기본 규칙보다 뒤에 있어야 한다. */
+@media (max-width: 768px) {
+    .admin-quicknav {
+        flex-wrap: nowrap;
+        overflow-x: auto;
+        margin: 0 -12px 1rem;
+        padding: 8px 12px;
+        scrollbar-width: none;
+    }
+
+    .admin-quicknav::-webkit-scrollbar {
+        display: none;
+    }
+
+    .admin-quicknav a {
+        flex: 0 0 auto;
+        white-space: nowrap;
+    }
+}
