@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>목양 플래너 — {{ plan_label }} 요금제</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Segoe UI',sans-serif;background:#0f172a;color:#e2e8f0;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px 16px}
+.box{max-width:480px;width:100%;background:#1e293b;border:1px solid #334155;border-radius:16px;padding:32px 28px}
+h1{font-size:1.25rem;color:#f1f5f9;margin-bottom:8px}
+.sub{color:#94a3b8;font-size:.9rem;line-height:1.6;margin-bottom:20px}
+ul{list-style:none;display:grid;gap:10px;margin-bottom:24px}
+li{font-size:.92rem;display:flex;gap:10px}
+li::before{content:"✓";color:#818cf8;font-weight:800}
+.price{font-size:.95rem;color:#c7d2fe;margin-bottom:20px}
+.btn{display:block;text-align:center;padding:12px 18px;border-radius:10px;background:#6366f1;color:#fff;font-weight:600;text-decoration:none;font-size:.95rem}
+.back{display:block;text-align:center;margin-top:14px;color:#94a3b8;font-size:.85rem;text-decoration:none}
+</style>
+</head>
+<body>
+<div class="box">
+  <h1>🙏 목양 플래너는 {{ plan_label }} 요금제에서 쓸 수 있어요</h1>
+  <p class="sub">요금제를 올리면 바로 열립니다. 이미 입력한 성도·상담일지·출석 기록은 그대로 남아 있어요.</p>
+  <ul>
+    <li>성도 관리와 상담일지 (관리자만 열 수 있게 암호화)</li>
+    <li>출석 체크와 장기 결석 알림</li>
+    <li>이번 주 연락 추천 (Jev 판단)</li>
+    <li>기부금 영수증 관리</li>
+  </ul>
+  <p class="price">{{ plan_label }} 월 {{ "{:,}".format(plan_amount) }}원</p>
+  <a class="btn" href="/admin/billing">요금제 바꾸기</a>
+  <a class="back" href="/admin">← 관리자 화면</a>
+</div>
+</body>
+</html>
