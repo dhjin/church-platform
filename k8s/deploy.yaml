@@ -158,6 +158,8 @@ spec:
               name: church-platform-secret
               key: TYPESAFE_API_KEY
               optional: true
+        - name: TYPESAFE_API_URL
+          value: "https://api.typesafe.ai/v1/systemone"
         - name: CONTACT_EMAIL
           value: "contact@thechurch-plus.org"
         # 랜딩 하단 사업자 정보 표시
