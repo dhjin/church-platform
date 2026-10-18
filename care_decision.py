@@ -2,7 +2,8 @@
 
 결정은 교체 가능한 결정기(decider)가 한다.
 - RuleDecider: 기본 규칙. 항상 동작한다.
-- JevDecider: Jev 의사결정 모델. JEV_API_URL 이 설정되면 쓰고, 실패하면 기본 규칙으로 돌아간다.
+- JevDecider: TypeSafe Jev 의사결정 모델. TYPESAFE_API_KEY 와 JEV_API_URL 이 모두 설정되면 쓰고,
+  실패하면 기본 규칙으로 돌아간다. API 키는 k8s secret church-platform-secret 에서 주입된다.
 
 결정기에는 이름·연락처를 보내지 않는다. 성도 ID와 숫자·플래그 특성만 보낸다.
 상담 일지(E2EE)는 서버가 읽을 수 없으므로 여기서도 쓰지 않는다.
@@ -153,8 +154,9 @@ class JevDecider:
 
 def get_decider():
     url = os.getenv("JEV_API_URL", "").strip()
-    if url:
-        return JevDecider(url, os.getenv("JEV_API_KEY", ""))
+    api_key = os.getenv("TYPESAFE_API_KEY", "").strip()
+    if url and api_key:
+        return JevDecider(url, api_key)
     return RuleDecider()
 
 

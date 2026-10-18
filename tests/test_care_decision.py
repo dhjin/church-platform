@@ -64,6 +64,10 @@ def test_jev_results_limited_to_sent_members():
 
 def test_get_decider_env(monkeypatch):
     monkeypatch.delenv("JEV_API_URL", raising=False)
+    monkeypatch.delenv("TYPESAFE_API_KEY", raising=False)
     assert isinstance(cd.get_decider(), cd.RuleDecider)
     monkeypatch.setenv("JEV_API_URL", "https://jev.example")
-    assert isinstance(cd.get_decider(), cd.JevDecider)
+    assert isinstance(cd.get_decider(), cd.RuleDecider)  # 키 없으면 기본 규칙
+    monkeypatch.setenv("TYPESAFE_API_KEY", "test-key")
+    d = cd.get_decider()
+    assert isinstance(d, cd.JevDecider) and d.api_key == "test-key"
