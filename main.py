@@ -30,6 +30,7 @@ from billing.providers import BillingProviderError, configured_providers
 import site_config
 import access_log
 import signup_guard
+import attendance
 import care_decision
 
 load_dotenv()
@@ -2845,6 +2846,7 @@ async def pastoral_dashboard(request: Request, user: dict = Depends(require_owne
     active = cur.fetchone()[0]
     cur.execute("SELECT COUNT(*) FROM counseling_logs WHERE tenant_id=%s", (tenant_id,))
     counsel_count = cur.fetchone()[0]
+    absences = _long_absences(cur, tenant_id, members)
     cur.close(); conn.close()
 
     recs, care_source = await run_in_threadpool(care_decision.recommend, members, today)
@@ -2853,11 +2855,34 @@ async def pastoral_dashboard(request: Request, user: dict = Depends(require_owne
 
     return templates.TemplateResponse(request, "pastoral_dashboard.html", {
         "tenant": {"church_name": user.get("church_name", "")},
-        "members": members, "alerts": alerts, "e2ee_salt": salt,
+        "members": members, "alerts": alerts, "e2ee_salt": salt, "absences": absences,
         "care_recs": care_recs, "care_source": care_source,
         "is_first_setup": is_first,
         "stats": {"total": total, "active": active, "alerts": len(alerts), "counseling": counsel_count},
     })
+
+
+def _long_absences(cur, tenant_id: int, members: list) -> list:
+    """최근 기록된 주일예배 몇 번을 연달아 빠진 활성 성도 (attendance.long_absences)."""
+    cur.execute(
+        "SELECT DISTINCT service_date FROM attendance_records WHERE tenant_id=%s AND service_type=%s"
+        " ORDER BY service_date DESC LIMIT %s",
+        (tenant_id, attendance.SERVICE_TYPES[0], attendance.ABSENCE_STREAK),
+    )
+    recent = [r[0] for r in cur.fetchall()]
+    if len(recent) < attendance.ABSENCE_STREAK:
+        return []
+    cur.execute(
+        "SELECT member_id, MAX(service_date), BOOL_OR(service_date = ANY(%s)) FROM attendance_records"
+        " WHERE tenant_id=%s AND service_type=%s GROUP BY member_id",
+        (recent, tenant_id, attendance.SERVICE_TYPES[0]),
+    )
+    last, recent_ids = {}, set()
+    for mid, last_date, was_recent in cur.fetchall():
+        last[mid] = last_date
+        if was_recent:
+            recent_ids.add(mid)
+    return attendance.long_absences(members, last, recent_ids, recent)
 
 
 @app.get("/planner/members", response_class=HTMLResponse)
@@ -2914,6 +2939,19 @@ async def pastoral_member_detail(member_id: int, request: Request, user: dict = 
         (member_id, tenant_id),
     )
     logs = [{"id": r[0], "encrypted_content": r[1], "iv": r[2], "created_at": str(r[3])[:16]} for r in cur.fetchall()]
+    cur.execute(
+        "SELECT MAX(service_date) FROM attendance_records WHERE tenant_id=%s AND member_id=%s",
+        (tenant_id, member_id),
+    )
+    member["last_attended"] = str(cur.fetchone()[0] or "")
+    cur.execute(
+        """SELECT COUNT(*) FROM attendance_records
+           WHERE tenant_id=%s AND member_id=%s AND service_type='주일예배'
+             AND service_date IN (SELECT DISTINCT service_date FROM attendance_records
+                                  WHERE tenant_id=%s AND service_type='주일예배' ORDER BY service_date DESC LIMIT 8)""",
+        (tenant_id, member_id, tenant_id),
+    )
+    member["sunday_count_8"] = cur.fetchone()[0]
     cur.close(); conn.close()
     from datetime import date
     return templates.TemplateResponse(request, "pastoral_member.html", {"member": member, "e2ee_salt": salt,
@@ -3002,6 +3040,82 @@ async def mark_contact(member_id: int, user: dict = Depends(require_owner)):
     )
     conn.commit(); cur.close(); conn.close()
     return {"ok": True, "date": str(date.today())}
+
+
+# ─── Pastoral: Attendance ────────────────────────────────────────────────────
+
+@app.get("/planner/attendance", response_class=HTMLResponse)
+async def attendance_page(request: Request, date: str = "", type: str = "", user: dict = Depends(require_owner)):
+    from datetime import date as _date
+    tenant_id = user["tenant_id"]
+    try:
+        service_date = _date.fromisoformat(date) if date else attendance.default_service_date(_date.today())
+    except ValueError:
+        service_date = attendance.default_service_date(_date.today())
+    service_type = attendance.parse_service_type(type)
+    conn = get_conn()
+    cur = conn.cursor()
+    cur.execute(
+        "SELECT id, name, cell_group FROM congregation_members WHERE tenant_id=%s AND status='active'"
+        " ORDER BY COALESCE(NULLIF(cell_group, ''), '~'), name",
+        (tenant_id,),
+    )
+    members = [{"id": r[0], "name": r[1], "cell_group": r[2] or ""} for r in cur.fetchall()]
+    cur.execute(
+        "SELECT member_id FROM attendance_records WHERE tenant_id=%s AND service_date=%s AND service_type=%s",
+        (tenant_id, service_date, service_type),
+    )
+    present = {r[0] for r in cur.fetchall()}
+    cur.execute(
+        "SELECT service_date, COUNT(*) FROM attendance_records WHERE tenant_id=%s AND service_type=%s"
+        " GROUP BY service_date ORDER BY service_date DESC LIMIT 8",
+        (tenant_id, service_type),
+    )
+    history = [{"date": str(r[0]), "count": r[1]} for r in cur.fetchall()]
+    cur.close(); conn.close()
+
+    groups = {}
+    for m in members:
+        groups.setdefault(m["cell_group"] or "셀 미지정", []).append({**m, "present": m["id"] in present})
+    return templates.TemplateResponse(request, "pastoral_attendance.html", {
+        "groups": groups, "service_date": str(service_date), "service_type": service_type,
+        "service_types": attendance.SERVICE_TYPES, "present_count": len(present), "total": len(members),
+        "history": history, "saved": request.query_params.get("saved") == "1",
+    })
+
+
+@app.post("/planner/attendance/save")
+async def attendance_save(
+    service_date: str = Form(...),
+    service_type: str = Form(""),
+    member_ids: List[int] = Form(default=[]),
+    user: dict = Depends(require_owner),
+):
+    from datetime import date as _date
+    tenant_id = user["tenant_id"]
+    try:
+        day = _date.fromisoformat(service_date)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="날짜 형식이 올바르지 않습니다.")
+    kind = attendance.parse_service_type(service_type)
+    conn = get_conn()
+    cur = conn.cursor()
+    cur.execute(
+        "DELETE FROM attendance_records WHERE tenant_id=%s AND service_date=%s AND service_type=%s",
+        (tenant_id, day, kind),
+    )
+    if member_ids:
+        # 이 교회 성도 ID만 저장한다
+        cur.execute(
+            """INSERT INTO attendance_records (tenant_id, member_id, service_date, service_type)
+               SELECT %s, id, %s, %s FROM congregation_members WHERE tenant_id=%s AND id = ANY(%s)
+               ON CONFLICT DO NOTHING""",
+            (tenant_id, day, kind, tenant_id, list(set(member_ids))),
+        )
+    conn.commit(); cur.close(); conn.close()
+    return RedirectResponse(
+        f"/planner/attendance?{urlencode({'date': day.isoformat(), 'type': kind, 'saved': '1'})}", status_code=303
+    )
 
 
 # ─── Pastoral: Donations ─────────────────────────────────────────────────────
