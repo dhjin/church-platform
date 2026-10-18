@@ -87,7 +87,7 @@ header{background:#1e293b;border-bottom:1px solid #334155;padding:12px 24px;disp
 
   <div class="grid">
     <div class="card section-full">
-      <h2>🙏 이번 주 연락 추천<span class="care-source">판단: {{ care_source }}</span></h2>
+      <h2>🙏 이번 주 연락 추천{% if care_ai %}<span class="care-source">AI 분석</span>{% endif %}</h2>
       {% if care_recs %}
       <div class="care-list">
         {% for r in care_recs %}

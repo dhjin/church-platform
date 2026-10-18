@@ -408,6 +408,22 @@ def require_owner(request: Request):
     return user
 
 
+def require_planner(request: Request):
+    """목양 플래너: 담임(owner)이면서 교회 요금제가 플래너를 포함해야 한다.
+    요금제가 안 되면 화면 요청은 안내 페이지로 보내고, 저장·API 요청은 402로 막는다."""
+    user = require_owner(request)
+    conn = get_conn()
+    try:
+        plan = billing.current_plan(conn, user["tenant_id"])
+    finally:
+        conn.close()
+    if not billing_config.planner_allowed(plan):
+        if request.method == "GET" and not request.url.path.startswith("/api/"):
+            raise HTTPException(status_code=303, headers={"Location": "/planner/upgrade"})
+        raise HTTPException(status_code=402, detail="목양 플래너는 프리미엄 요금제에서 이용할 수 있습니다.")
+    return user
+
+
 def require_manager(request: Request):
     user = get_current_user(request)
     if not user or user["role"] not in MANAGER_ROLES:
@@ -2812,8 +2828,16 @@ def _get_or_create_e2ee_salt(tenant_id: int) -> tuple[str, bool]:
     return salt, True
 
 
+@app.get("/planner/upgrade", response_class=HTMLResponse)
+async def pastoral_upgrade(request: Request, user: dict = Depends(require_owner)):
+    min_plan = billing_config.plan_info(billing_config.PLANNER_MIN_PLAN)
+    return templates.TemplateResponse(request, "pastoral_upgrade.html", {
+        "plan_label": min_plan["label"], "plan_amount": min_plan["amount"],
+    })
+
+
 @app.get("/planner/dashboard", response_class=HTMLResponse)
-async def pastoral_dashboard(request: Request, user: dict = Depends(require_owner)):
+async def pastoral_dashboard(request: Request, user: dict = Depends(require_planner)):
     tenant_id = user["tenant_id"]
     salt, is_first = _get_or_create_e2ee_salt(tenant_id)
     conn = get_conn()
@@ -2856,7 +2880,7 @@ async def pastoral_dashboard(request: Request, user: dict = Depends(require_owne
     return templates.TemplateResponse(request, "pastoral_dashboard.html", {
         "tenant": {"church_name": user.get("church_name", "")},
         "members": members, "alerts": alerts, "e2ee_salt": salt, "absences": absences,
-        "care_recs": care_recs, "care_source": care_source,
+        "care_recs": care_recs, "care_ai": care_source == "Jev",  # 외부 모델 이름은 화면에 내보내지 않는다
         "is_first_setup": is_first,
         "stats": {"total": total, "active": active, "alerts": len(alerts), "counseling": counsel_count},
     })
@@ -2886,12 +2910,12 @@ def _long_absences(cur, tenant_id: int, members: list) -> list:
 
 
 @app.get("/planner/members", response_class=HTMLResponse)
-async def pastoral_members_redirect(user: dict = Depends(require_owner)):
+async def pastoral_members_redirect(user: dict = Depends(require_planner)):
     return RedirectResponse("/planner/dashboard", status_code=302)
 
 
 @app.get("/planner/members/new", response_class=HTMLResponse)
-async def pastoral_member_new(request: Request, user: dict = Depends(require_owner)):
+async def pastoral_member_new(request: Request, user: dict = Depends(require_planner)):
     return templates.TemplateResponse(request, "pastoral_member_new.html")
 
 
@@ -2901,7 +2925,7 @@ async def pastoral_member_create(
     name: str = Form(...), cell_group: str = Form(""), phone: str = Form(""),
     email: str = Form(""), address: str = Form(""), birth_date: str = Form(""),
     join_date: str = Form(""), baptism_date: str = Form(""), status: str = Form("active"),
-    notes: str = Form(""), user: dict = Depends(require_owner),
+    notes: str = Form(""), user: dict = Depends(require_planner),
 ):
     tenant_id = user["tenant_id"]
     def d(v): return v if v else None
@@ -2917,7 +2941,7 @@ async def pastoral_member_create(
 
 
 @app.get("/planner/members/{member_id}", response_class=HTMLResponse)
-async def pastoral_member_detail(member_id: int, request: Request, user: dict = Depends(require_owner)):
+async def pastoral_member_detail(member_id: int, request: Request, user: dict = Depends(require_planner)):
     tenant_id = user["tenant_id"]
     salt, _ = _get_or_create_e2ee_salt(tenant_id)
     conn = get_conn()
@@ -2964,7 +2988,7 @@ async def pastoral_member_update(
     name: str = Form(...), cell_group: str = Form(""), phone: str = Form(""),
     email: str = Form(""), address: str = Form(""), birth_date: str = Form(""),
     join_date: str = Form(""), baptism_date: str = Form(""), status: str = Form("active"),
-    notes: str = Form(""), user: dict = Depends(require_owner),
+    notes: str = Form(""), user: dict = Depends(require_planner),
 ):
     tenant_id = user["tenant_id"]
     def d(v): return v if v else None
@@ -2979,7 +3003,7 @@ async def pastoral_member_update(
 
 
 @app.post("/planner/members/delete/{member_id}")
-async def pastoral_member_delete(member_id: int, user: dict = Depends(require_owner)):
+async def pastoral_member_delete(member_id: int, user: dict = Depends(require_planner)):
     tenant_id = user["tenant_id"]
     conn = get_conn()
     cur = conn.cursor()
@@ -2999,7 +3023,7 @@ class CounselCreateRequest(BaseModel):
 
 
 @app.post("/api/planner/counsel")
-async def create_counsel(data: CounselCreateRequest, user: dict = Depends(require_owner)):
+async def create_counsel(data: CounselCreateRequest, user: dict = Depends(require_planner)):
     tenant_id = user["tenant_id"]
     from datetime import date
     conn = get_conn()
@@ -3019,7 +3043,7 @@ async def create_counsel(data: CounselCreateRequest, user: dict = Depends(requir
 
 
 @app.delete("/api/planner/counsel/{log_id}")
-async def delete_counsel(log_id: int, user: dict = Depends(require_owner)):
+async def delete_counsel(log_id: int, user: dict = Depends(require_planner)):
     tenant_id = user["tenant_id"]
     conn = get_conn()
     cur = conn.cursor()
@@ -3029,7 +3053,7 @@ async def delete_counsel(log_id: int, user: dict = Depends(require_owner)):
 
 
 @app.post("/api/planner/members/{member_id}/contact")
-async def mark_contact(member_id: int, user: dict = Depends(require_owner)):
+async def mark_contact(member_id: int, user: dict = Depends(require_planner)):
     tenant_id = user["tenant_id"]
     from datetime import date
     conn = get_conn()
@@ -3045,7 +3069,7 @@ async def mark_contact(member_id: int, user: dict = Depends(require_owner)):
 # ─── Pastoral: Attendance ────────────────────────────────────────────────────
 
 @app.get("/planner/attendance", response_class=HTMLResponse)
-async def attendance_page(request: Request, date: str = "", type: str = "", user: dict = Depends(require_owner)):
+async def attendance_page(request: Request, date: str = "", type: str = "", user: dict = Depends(require_planner)):
     from datetime import date as _date
     tenant_id = user["tenant_id"]
     try:
@@ -3089,7 +3113,7 @@ async def attendance_save(
     service_date: str = Form(...),
     service_type: str = Form(""),
     member_ids: List[int] = Form(default=[]),
-    user: dict = Depends(require_owner),
+    user: dict = Depends(require_planner),
 ):
     from datetime import date as _date
     tenant_id = user["tenant_id"]
@@ -3121,7 +3145,7 @@ async def attendance_save(
 # ─── Pastoral: Donations ─────────────────────────────────────────────────────
 
 @app.get("/planner/donations", response_class=HTMLResponse)
-async def pastoral_donations(request: Request, year: int = 0, user: dict = Depends(require_owner)):
+async def pastoral_donations(request: Request, year: int = 0, user: dict = Depends(require_planner)):
     tenant_id = user["tenant_id"]
     from datetime import date
     current_year = year or date.today().year
@@ -3148,7 +3172,7 @@ async def pastoral_donations(request: Request, year: int = 0, user: dict = Depen
 async def pastoral_donation_create(
     member_name: str = Form(...), amount: int = Form(...),
     year: int = Form(...), receipt_number: str = Form(""),
-    user: dict = Depends(require_owner),
+    user: dict = Depends(require_planner),
 ):
     tenant_id = user["tenant_id"]
     conn = get_conn()
@@ -3166,7 +3190,7 @@ async def pastoral_donation_create(
 
 
 @app.post("/planner/donations/delete/{receipt_id}")
-async def pastoral_donation_delete(receipt_id: int, user: dict = Depends(require_owner)):
+async def pastoral_donation_delete(receipt_id: int, user: dict = Depends(require_planner)):
     tenant_id = user["tenant_id"]
     conn = get_conn()
     cur = conn.cursor()
@@ -3176,7 +3200,7 @@ async def pastoral_donation_delete(receipt_id: int, user: dict = Depends(require
 
 
 @app.get("/planner/donations/export/{year}")
-async def pastoral_donation_export(year: int, user: dict = Depends(require_owner)):
+async def pastoral_donation_export(year: int, user: dict = Depends(require_planner)):
     tenant_id = user["tenant_id"]
     conn = get_conn()
     cur = conn.cursor()

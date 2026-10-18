@@ -31,7 +31,8 @@ PLANS = {
         "amount": int(os.getenv("PLAN_PREMIUM_AMOUNT", "49000")),
         "ai_designs_per_month": int(os.getenv("PLAN_PREMIUM_AI_DESIGNS", "30")),
         "custom_requests": True,
-        "features": ["플러스 전체", "AI 맞춤 디자인 월 30회", "전문가 검수 맞춤 제작 요청"],
+        "features": ["플러스 전체", "AI 맞춤 디자인 월 30회", "전문가 검수 맞춤 제작 요청",
+                     "목양 플래너 (성도·상담일지·출석·기부금, AI 연락 추천)"],
     },
 }
 PLAN_ORDER = ["standard", "plus", "premium"]
@@ -43,6 +44,16 @@ SETUP_FEE_NAME = os.getenv("SETUP_FEE_NAME", "더처치플러스 AI 맞춤 제�
 
 def plan_info(plan: str) -> dict:
     return PLANS.get(plan) or PLANS["standard"]
+
+
+# 목양 플래너를 쓸 수 있는 가장 낮은 요금제. 이 요금제와 그보다 높은 요금제에서 열린다.
+PLANNER_MIN_PLAN = os.getenv("PLANNER_MIN_PLAN", "premium")
+
+
+def planner_allowed(plan: str) -> bool:
+    if plan not in PLANS or PLANNER_MIN_PLAN not in PLANS:
+        return False
+    return PLAN_ORDER.index(plan) >= PLAN_ORDER.index(PLANNER_MIN_PLAN)
 
 
 # 결제 실패 시 재시도 간격(일). 모두 실패하면 구독은 unpaid 상태가 된다.

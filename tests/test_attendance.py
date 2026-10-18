@@ -51,6 +51,10 @@ def client(db):
             (tid,),
         )
         uid = cur.fetchone()[0]
+        cur.execute(
+            "INSERT INTO subscriptions (tenant_id, provider, plan, amount, customer_key) VALUES (%s,'toss','premium',49000,'c1')",
+            (tid,),
+        )
     db.commit()
     main.sessions["att"] = {"id": uid, "username": "boss", "role": "owner", "tenant_id": tid}
     c = TestClient(main.app, base_url="http://t1.example.org")
