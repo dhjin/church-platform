@@ -895,7 +895,7 @@
                                     <td>{{ member.display_order }}</td>
                                     <td>
                                         {% if member.photo_path %}
-                                        <img src="{{ member.photo_path }}" alt="{{ member.name }}" style="width: 40px; height: 40px; object-fit: contain;">
+                                        <img src="{{ member.photo_path }}" alt="{{ member.name }}" style="width: 40px; height: 40px; object-fit: contain;" onerror="this.replaceWith('사진 없음')">
                                         {% else %}
                                         -
                                         {% endif %}
@@ -903,6 +903,11 @@
                                     <td>{{ member.name }}</td>
                                     <td>{{ member.role }}</td>
                                     <td>
+                                        <form method="POST" action="/admin/member/photo/{{ member.id }}" enctype="multipart/form-data" style="display: inline;">
+                                            <label class="btn btn-secondary btn-sm" style="cursor: pointer; margin: 0;">사진 바꾸기
+                                                <input type="file" name="photo" accept="image/*" hidden onchange="this.form.submit()">
+                                            </label>
+                                        </form>
                                         <form method="POST" action="/admin/member/delete/{{ member.id }}" style="display: inline;">
                                             <button type="submit" class="btn btn-danger btn-sm"
                                                 onclick="return confirm('정말 삭제하시겠습니까?')">삭제</button>

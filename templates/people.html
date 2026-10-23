@@ -190,7 +190,7 @@
                 <div class="member-card">
                     <div class="member-photo">
                         {% if member.photo_path %}
-                        <img src="{{ member.photo_path }}" alt="{{ member.name }}">
+                        <img src="{{ member.photo_path }}" alt="{{ member.name }}" onerror="this.outerHTML='<div class=&quot;no-photo&quot;>&#128100;</div>'">
                         {% else %}
                         <div class="no-photo">&#128100;</div>
                         {% endif %}
