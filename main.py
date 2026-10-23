@@ -1813,6 +1813,37 @@ async def create_member(
     return RedirectResponse(url="/admin", status_code=303)
 
 
+@app.post("/admin/member/photo/{member_id}")
+async def update_member_photo(
+    member_id: int, photo: UploadFile = File(...), user: dict = Depends(require_admin),
+):
+    """등록된 멤버의 사진만 바꾼다 (사진이 깨졌을 때 지우고 다시 만들지 않아도 되게)."""
+    tenant_id = user["tenant_id"]
+    if not photo.filename:
+        return RedirectResponse(url="/admin#members", status_code=303)
+    ext = Path(photo.filename).suffix.lower()
+    if ext not in (".jpg", ".jpeg", ".png", ".webp", ".gif"):
+        raise HTTPException(400, "jpg/png/webp/gif 사진만 가능합니다.")
+    conn = get_conn()
+    cur = conn.cursor()
+    cur.execute("SELECT 1 FROM members WHERE id=%s AND tenant_id=%s", (member_id, tenant_id))
+    if not cur.fetchone():
+        cur.close()
+        conn.close()
+        raise HTTPException(404)
+    fname = f"member_{datetime.now().timestamp()}{ext}"
+    with (get_upload_dir(tenant_id) / fname).open("wb") as f:
+        shutil.copyfileobj(photo.file, f)
+    cur.execute(
+        "UPDATE members SET photo_path=%s WHERE id=%s AND tenant_id=%s",
+        (f"/uploads/{tenant_id}/{fname}", member_id, tenant_id),
+    )
+    conn.commit()
+    cur.close()
+    conn.close()
+    return RedirectResponse(url="/admin#members", status_code=303)
+
+
 @app.post("/admin/member/delete/{member_id}")
 async def delete_member(member_id: int, user: dict = Depends(require_admin)):
     tenant_id = user["tenant_id"]
