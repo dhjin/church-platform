@@ -382,3 +382,25 @@ CREATE TABLE IF NOT EXISTS attendance_records (
     UNIQUE (tenant_id, member_id, service_date, service_type)
 );
 CREATE INDEX IF NOT EXISTS idx_attendance_tenant_date ON attendance_records(tenant_id, service_date DESC);
+
+-- 커뮤니티 게시판: 승인된 성도가 글과 사진을 올린다. 댓글은 comments(post_type='board') 를 같이 쓴다.
+CREATE TABLE IF NOT EXISTS board_posts (
+    id SERIAL PRIMARY KEY,
+    tenant_id INTEGER NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    title TEXT NOT NULL,
+    content TEXT NOT NULL DEFAULT '',
+    views INTEGER NOT NULL DEFAULT 0,
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_board_posts_tenant ON board_posts(tenant_id, created_at DESC);
+
+CREATE TABLE IF NOT EXISTS board_images (
+    id SERIAL PRIMARY KEY,
+    tenant_id INTEGER NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+    post_id INTEGER NOT NULL REFERENCES board_posts(id) ON DELETE CASCADE,
+    image_path TEXT NOT NULL,
+    sort_order INTEGER NOT NULL DEFAULT 0
+);
+CREATE INDEX IF NOT EXISTS idx_board_images_post ON board_images(tenant_id, post_id);

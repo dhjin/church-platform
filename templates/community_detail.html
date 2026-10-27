@@ -1,0 +1,70 @@
+{% extends "_community_base.html" %}
+{% block title %}{{ post.title }}{% endblock %}
+{% block og_image %}{% if post.images %}{{ site.base_url if site else "" }}{{ post.images[0].path }}{% else %}{{ site.og_image if site else "" }}{% endif %}{% endblock %}
+{% block lang_href %}{% if t.lang == 'ko' %}/en/community/{{ post.id }}{% else %}/community/{{ post.id }}{% endif %}{% endblock %}
+{% block content %}
+<article>
+    <div class="post-head">
+        <h1 class="post-title">{{ post.title }}</h1>
+        <div class="board-meta">
+            <span>{{ post.author or t.board_default_author }}</span>
+            <span>{{ post.created_at }}</span>
+            <span>{{ t.pastoral_col_views }} {{ post.views }}</span>
+        </div>
+    </div>
+
+    {% if post.images %}
+    <div class="post-photos">
+        {% for img in post.images %}
+        <a href="{{ img.path }}" target="_blank" rel="noopener"><img src="{{ img.path }}" alt="{{ post.title }} {{ loop.index }}" loading="lazy"></a>
+        {% endfor %}
+    </div>
+    {% endif %}
+
+    {% if post.content %}<div class="post-content">{{ post.content }}</div>{% endif %}
+
+    <div class="post-actions">
+        <a href="{{ lp }}/community" class="btn-light">{{ t.board_back | safe }}</a>
+        {% if can_manage %}
+        <div style="display:flex; gap:8px;">
+            <a href="/community/{{ post.id }}/edit{% if t.lang == 'en' %}?lang=en{% endif %}" class="btn-light">{{ t.board_edit }}</a>
+            <form method="POST" action="/community/{{ post.id }}/delete" onsubmit="return confirm('{{ t.board_delete_confirm }}')">
+                <button type="submit" class="btn-danger">{{ t.board_delete }}</button>
+            </form>
+        </div>
+        {% endif %}
+    </div>
+</article>
+
+<section class="comments" id="comments">
+    <h3>{{ t.comments_title }} ({{ comments|length }})</h3>
+    {% for c in comments %}
+    <div class="comment-item">
+        <div class="comment-header">
+            <span class="comment-author">{{ c.name or t.board_default_author }}</span>
+            <span class="comment-date">{{ c.created_at }}</span>
+            {% if user and (user.id == c.user_id or user.role in ['owner', 'admin', 'manager']) %}
+            <form method="POST" action="/comment/{{ c.id }}/delete?redirect={{ lp }}/community/{{ post.id }}" style="display:inline; margin-left:auto;">
+                <button type="submit" class="comment-delete-btn" onclick="return confirm('{{ t.comment_delete_confirm }}')">{{ t.comment_delete }}</button>
+            </form>
+            {% endif %}
+        </div>
+        <div class="comment-content">{{ c.content }}</div>
+    </div>
+    {% else %}
+    <p class="board-note">{{ t.no_comments }}</p>
+    {% endfor %}
+
+    {% if can_comment %}
+    <form method="POST" action="/community/{{ post.id }}/comment" class="comment-form">
+        <input type="hidden" name="lang" value="{{ t.lang }}">
+        <textarea name="content" rows="3" maxlength="1000" placeholder="{{ t.comment_placeholder }}" required></textarea>
+        <div class="form-buttons" style="margin-top:8px;"><button type="submit" class="btn-primary">{{ t.comment_submit }}</button></div>
+    </form>
+    {% elif user %}
+    <p class="board-note" style="margin-top:1rem;">{{ t.board_pending }}</p>
+    {% else %}
+    <p class="board-note" style="margin-top:1rem;">{{ t.comment_login_prompt }} <a href="{{ lp }}/login">{{ t.comment_login_link }}</a> {{ t.comment_login_suffix }}</p>
+    {% endif %}
+</section>
+{% endblock %}

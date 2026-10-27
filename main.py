@@ -32,6 +32,7 @@ import access_log
 import signup_guard
 import attendance
 import care_decision
+import community
 
 load_dotenv()
 
@@ -146,6 +147,19 @@ TRANSLATIONS = {
         "err_signup_blocked": "이 이메일로는 가입할 수 없습니다.",
         "err_signup_rate": "가입 요청이 너무 많습니다. 잠시 후 다시 시도해 주세요.",
         "login_pending": "관리자 승인을 기다리는 계정입니다. 승인 후 로그인할 수 있습니다.",
+        "nav_community": "커뮤니티",
+        "board_title": "커뮤니티", "board_subtitle": "성도들이 함께 나누는 이야기와 사진입니다.",
+        "board_write": "글쓰기", "board_empty": "아직 글이 없습니다. 첫 이야기를 나눠 주세요.",
+        "board_login_to_write": "글을 쓰려면 로그인해 주세요.",
+        "board_pending": "관리자 승인 후 글을 쓸 수 있습니다.",
+        "board_form_title": "제목", "board_form_content": "내용", "board_form_photos": "사진",
+        "board_photo_hint": "최대 10장. 위치 정보는 지우고, 큰 사진은 줄여서 올립니다.",
+        "board_save": "올리기", "board_update": "수정하기", "board_cancel": "취소",
+        "board_edit": "수정", "board_delete": "삭제", "board_delete_confirm": "이 글을 삭제하시겠습니까?",
+        "board_remove_photo": "삭제", "board_back": "&larr; 목록으로", "board_new_title": "새 글",
+        "board_edit_title": "글 수정", "board_default_author": "성도", "board_uploading": "올리는 중...",
+        "board_err_title": "제목을 입력해 주세요.", "board_err_too_many": "사진은 한 글에 10장까지 올릴 수 있습니다.",
+        "board_err_rate": "글을 너무 자주 올렸습니다. 잠시 후 다시 시도해 주세요.",
     },
     "en": {
         "lang": "en", "lang_name": "English", "other_lang": "ko", "other_lang_name": "한국어",
@@ -218,6 +232,19 @@ TRANSLATIONS = {
         "err_signup_blocked": "This email cannot be used to sign up.",
         "err_signup_rate": "Too many sign-up attempts. Please try again later.",
         "login_pending": "Your account is waiting for admin approval.",
+        "nav_community": "Community",
+        "board_title": "Community", "board_subtitle": "Stories and photos shared by our church family.",
+        "board_write": "New Post", "board_empty": "No posts yet. Be the first to share.",
+        "board_login_to_write": "Please log in to write a post.",
+        "board_pending": "You can post after an admin approves your account.",
+        "board_form_title": "Title", "board_form_content": "Content", "board_form_photos": "Photos",
+        "board_photo_hint": "Up to 10 photos. Location data is removed and large photos are resized.",
+        "board_save": "Post", "board_update": "Save", "board_cancel": "Cancel",
+        "board_edit": "Edit", "board_delete": "Delete", "board_delete_confirm": "Delete this post?",
+        "board_remove_photo": "Remove", "board_back": "&larr; Back to List", "board_new_title": "New Post",
+        "board_edit_title": "Edit Post", "board_default_author": "Member", "board_uploading": "Uploading...",
+        "board_err_title": "Please enter a title.", "board_err_too_many": "Up to 10 photos per post.",
+        "board_err_rate": "You are posting too often. Please try again later.",
     },
 }
 
@@ -1226,6 +1253,364 @@ async def delete_comment(request: Request, comment_id: int, redirect: str = "/")
     if not redirect.startswith("/") or redirect.startswith("//") or "\\" in redirect:
         redirect = "/"
     return RedirectResponse(url=redirect, status_code=303)
+
+
+# ─── Community board (커뮤니티 게시판) ────────────────────────────────────────
+
+def _board_writer(request: Request) -> Optional[dict]:
+    """글을 쓸 수 있는 사용자. 세션에 남은 예전 권한 대신 지금 DB 권한을 본다
+    (로그인한 뒤 관리자가 승인 대기로 바꾼 계정도 막기 위해)."""
+    user = get_current_user(request)
+    if not user:
+        return None
+    conn = get_conn()
+    try:
+        with conn.cursor() as cur:
+            cur.execute("SELECT role, username FROM users WHERE id=%s AND tenant_id=%s",
+                        (user["id"], user["tenant_id"]))
+            row = cur.fetchone()
+    finally:
+        conn.close()
+    if not row or _signup_locked(row[0], row[1]):
+        return None
+    return {**user, "role": row[0]}
+
+
+def _require_board_writer(request: Request) -> dict:
+    if not get_current_user(request):
+        raise HTTPException(401, "로그인이 필요합니다.")
+    user = _board_writer(request)
+    if not user:
+        raise HTTPException(403, "관리자 승인 후 글을 쓸 수 있습니다.")
+    return user
+
+
+def _board_post(cur, tenant_id: int, post_id: int) -> Optional[dict]:
+    cur.execute(
+        """
+        SELECT p.id, p.title, p.content, p.views, p.created_at, p.updated_at, p.user_id, u.name
+        FROM board_posts p JOIN users u ON u.id = p.user_id AND u.tenant_id = p.tenant_id
+        WHERE p.id=%s AND p.tenant_id=%s
+        """,
+        (post_id, tenant_id),
+    )
+    r = cur.fetchone()
+    if not r:
+        return None
+    cur.execute("SELECT id, image_path, sort_order FROM board_images WHERE post_id=%s AND tenant_id=%s ORDER BY sort_order, id",
+                (post_id, tenant_id))
+    images = [{"id": i[0], "path": i[1], "order": i[2]} for i in cur.fetchall()]
+    return {"id": r[0], "title": r[1], "content": r[2], "views": r[3],
+            "created_at": r[4].strftime("%Y-%m-%d %H:%M") if r[4] else "",
+            "edited": bool(r[5]), "user_id": r[6], "author": r[7], "images": images}
+
+
+def _can_manage_post(user: Optional[dict], post: dict) -> bool:
+    return bool(user) and (user["id"] == post["user_id"] or user["role"] in MANAGER_ROLES)
+
+
+async def _read_photos(photos: ImageUploads) -> list:
+    """폼에서 온 사진들을 검사·정리한다. 빈 칸은 건너뛴다."""
+    files = [p for p in photos or [] if not isinstance(p, str) and p.filename]
+    if len(files) > community.MAX_PHOTOS:
+        raise community.PhotoError("사진은 한 글에 10장까지 올릴 수 있습니다.")
+    out = []
+    for f in files:
+        data = await f.read(community.MAX_UPLOAD_BYTES + 1)
+        out.append(await run_in_threadpool(community.process_photo, data))
+    return out
+
+
+def _save_board_photos(cur, tenant_id: int, post_id: int, processed: list, start: int = 0) -> list:
+    saved = []
+    upload_dir = get_upload_dir(tenant_id)
+    for i, (data, ext) in enumerate(processed):
+        fname = community.photo_filename(ext)
+        (upload_dir / fname).write_bytes(data)
+        saved.append(fname)
+        cur.execute("INSERT INTO board_images (tenant_id, post_id, image_path, sort_order) VALUES (%s,%s,%s,%s)",
+                    (tenant_id, post_id, f"/uploads/{tenant_id}/{fname}", start + i))
+    return saved
+
+
+def _remove_upload(tenant_id: int, path: str) -> None:
+    prefix = f"/uploads/{tenant_id}/"
+    if path.startswith(prefix) and "/" not in path[len(prefix):]:
+        try:
+            (get_upload_dir(tenant_id) / path[len(prefix):]).unlink()
+        except FileNotFoundError:
+            pass
+
+
+async def _community_list(request: Request, lang: str, page: int, q: str):
+    if not getattr(request.state, "tenant", None):
+        raise HTTPException(404)
+    tenant_id = request.state.tenant["id"]
+    t = get_t(lang, request)
+    lp = get_lang_prefix(lang)
+    page = max(1, page)
+    q = q.strip()[:50]
+    where, params = "p.tenant_id=%s", [tenant_id]
+    if q:
+        where += " AND (p.title ILIKE %s OR p.content ILIKE %s)"
+        params += [f"%{q}%", f"%{q}%"]
+    conn = get_conn()
+    try:
+        with conn.cursor() as cur:
+            cur.execute(f"SELECT COUNT(*) FROM board_posts p WHERE {where}", params)
+            total = cur.fetchone()[0]
+            cur.execute(
+                f"""
+                SELECT p.id, p.title, p.content, p.views, p.created_at, u.name,
+                       (SELECT image_path FROM board_images i WHERE i.post_id=p.id AND i.tenant_id=p.tenant_id
+                        ORDER BY sort_order, id LIMIT 1),
+                       (SELECT COUNT(*) FROM board_images i WHERE i.post_id=p.id AND i.tenant_id=p.tenant_id),
+                       (SELECT COUNT(*) FROM comments c WHERE c.post_type='board' AND c.post_id=p.id AND c.tenant_id=p.tenant_id)
+                FROM board_posts p JOIN users u ON u.id = p.user_id AND u.tenant_id = p.tenant_id
+                WHERE {where}
+                ORDER BY p.created_at DESC, p.id DESC
+                LIMIT %s OFFSET %s
+                """,
+                params + [community.PER_PAGE, (page - 1) * community.PER_PAGE],
+            )
+            posts = [
+                {"id": r[0], "title": r[1], "content": r[2], "views": r[3],
+                 "created_at": r[4].strftime("%Y-%m-%d") if r[4] else "", "author": r[5],
+                 "thumb": r[6], "photo_count": r[7], "comment_count": r[8]}
+                for r in cur.fetchall()
+            ]
+    finally:
+        conn.close()
+    user = get_current_user(request)
+    return templates.TemplateResponse(request, "community_list.html", {
+        "t": t, "lp": lp, "user": user, "can_write": bool(_board_writer(request)) if user else False,
+        "posts": posts, "page": page, "q": q, "total": total,
+        "total_pages": max(1, (total + community.PER_PAGE - 1) // community.PER_PAGE),
+    })
+
+
+@app.get("/community", response_class=HTMLResponse)
+async def community_list(request: Request, page: int = 1, q: str = ""):
+    return await _community_list(request, "ko", page, q)
+
+
+@app.get("/en/community", response_class=HTMLResponse)
+async def community_list_en(request: Request, page: int = 1, q: str = ""):
+    return await _community_list(request, "en", page, q)
+
+
+def _community_form(request: Request, lang: str, user: dict, post: Optional[dict] = None,
+                    error: str = "", title: str = "", content: str = "", status_code: int = 200):
+    return templates.TemplateResponse(request, "community_form.html", {
+        "t": get_t(lang, request), "lp": get_lang_prefix(lang), "user": user, "post": post,
+        "error": error, "title": title or (post["title"] if post else ""),
+        "content": content or (post["content"] if post else ""),
+        "max_photos": community.MAX_PHOTOS,
+    }, status_code=status_code)
+
+
+@app.get("/community/new", response_class=HTMLResponse)
+async def community_new(request: Request, lang: str = "ko"):
+    if not getattr(request.state, "tenant", None):
+        raise HTTPException(404)
+    lang = "en" if lang == "en" else "ko"
+    if not get_current_user(request):
+        return RedirectResponse(url=f"{get_lang_prefix(lang)}/login", status_code=303)
+    return _community_form(request, lang, _require_board_writer(request))
+
+
+@app.post("/community/new")
+async def community_create(
+    request: Request, title: str = Form(""), content: str = Form(""),
+    photos: ImageUploads = File(default=[]), lang: str = Form("ko"),
+):
+    if not getattr(request.state, "tenant", None):
+        raise HTTPException(404)
+    user = _require_board_writer(request)
+    lang = "en" if lang == "en" else "ko"
+    t = get_t(lang, request)
+    title, content = title.strip()[:community.MAX_TITLE], content.strip()[:community.MAX_CONTENT]
+    if not title:
+        return _community_form(request, lang, user, error=t["board_err_title"], content=content, status_code=400)
+    try:
+        processed = await _read_photos(photos)
+    except community.PhotoError as e:
+        return _community_form(request, lang, user, error=str(e), title=title, content=content, status_code=400)
+    if not community.post_limiter.allow(f"{user['tenant_id']}:{user['id']}"):
+        return _community_form(request, lang, user, error=t["board_err_rate"], title=title, content=content, status_code=429)
+    tenant_id = user["tenant_id"]
+    conn = get_conn()
+    saved = []
+    try:
+        with conn.cursor() as cur:
+            cur.execute(
+                "INSERT INTO board_posts (tenant_id, user_id, title, content) VALUES (%s,%s,%s,%s) RETURNING id",
+                (tenant_id, user["id"], title, content),
+            )
+            post_id = cur.fetchone()[0]
+            saved = _save_board_photos(cur, tenant_id, post_id, processed)
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        for fname in saved:
+            _remove_upload(tenant_id, f"/uploads/{tenant_id}/{fname}")
+        raise
+    finally:
+        conn.close()
+    access_log.record(request, "board_post", user, 303)
+    return RedirectResponse(url=f"{get_lang_prefix(lang)}/community/{post_id}", status_code=303)
+
+
+async def _community_detail(request: Request, post_id: int, lang: str):
+    if not getattr(request.state, "tenant", None):
+        raise HTTPException(404)
+    tenant_id = request.state.tenant["id"]
+    conn = get_conn()
+    try:
+        with conn.cursor() as cur:
+            cur.execute("UPDATE board_posts SET views = views + 1 WHERE id=%s AND tenant_id=%s", (post_id, tenant_id))
+            conn.commit()
+            post = _board_post(cur, tenant_id, post_id)
+            if not post:
+                raise HTTPException(404, "글을 찾을 수 없습니다.")
+            cur.execute(
+                """
+                SELECT c.id, c.content, c.created_at, u.name, c.user_id
+                FROM comments c JOIN users u ON c.user_id = u.id AND u.tenant_id = c.tenant_id
+                WHERE c.post_type='board' AND c.post_id=%s AND c.tenant_id=%s
+                ORDER BY c.created_at ASC
+                """,
+                (post_id, tenant_id),
+            )
+            comments = [{"id": r[0], "content": r[1],
+                         "created_at": r[2].strftime("%Y-%m-%d %H:%M") if r[2] else "",
+                         "name": r[3], "user_id": r[4]} for r in cur.fetchall()]
+    finally:
+        conn.close()
+    user = get_current_user(request)
+    return templates.TemplateResponse(request, "community_detail.html", {
+        "t": get_t(lang, request), "lp": get_lang_prefix(lang), "user": user, "post": post,
+        "comments": comments, "can_manage": _can_manage_post(user, post),
+        "can_comment": bool(_board_writer(request)) if user else False,
+    })
+
+
+@app.get("/community/{post_id}", response_class=HTMLResponse)
+async def community_detail(request: Request, post_id: int):
+    return await _community_detail(request, post_id, "ko")
+
+
+@app.get("/en/community/{post_id}", response_class=HTMLResponse)
+async def community_detail_en(request: Request, post_id: int):
+    return await _community_detail(request, post_id, "en")
+
+
+def _load_managed_post(request: Request, post_id: int) -> tuple:
+    user = _require_board_writer(request)
+    conn = get_conn()
+    try:
+        with conn.cursor() as cur:
+            post = _board_post(cur, user["tenant_id"], post_id)
+    finally:
+        conn.close()
+    if not post:
+        raise HTTPException(404, "글을 찾을 수 없습니다.")
+    if not _can_manage_post(user, post):
+        raise HTTPException(403, "수정 권한이 없습니다.")
+    return user, post
+
+
+@app.get("/community/{post_id}/edit", response_class=HTMLResponse)
+async def community_edit(request: Request, post_id: int, lang: str = "ko"):
+    if not getattr(request.state, "tenant", None):
+        raise HTTPException(404)
+    user, post = _load_managed_post(request, post_id)
+    return _community_form(request, "en" if lang == "en" else "ko", user, post)
+
+
+@app.post("/community/{post_id}/edit")
+async def community_update(
+    request: Request, post_id: int, title: str = Form(""), content: str = Form(""),
+    photos: ImageUploads = File(default=[]), remove_images: List[int] = Form(default=[]),
+    lang: str = Form("ko"),
+):
+    if not getattr(request.state, "tenant", None):
+        raise HTTPException(404)
+    user, post = _load_managed_post(request, post_id)
+    lang = "en" if lang == "en" else "ko"
+    t = get_t(lang, request)
+    title, content = title.strip()[:community.MAX_TITLE], content.strip()[:community.MAX_CONTENT]
+    if not title:
+        return _community_form(request, lang, user, post, error=t["board_err_title"], content=content, status_code=400)
+    remove = {i["id"] for i in post["images"]} & set(remove_images)
+    try:
+        processed = await _read_photos(photos)
+        if len(post["images"]) - len(remove) + len(processed) > community.MAX_PHOTOS:
+            raise community.PhotoError(t["board_err_too_many"])
+    except community.PhotoError as e:
+        return _community_form(request, lang, user, post, error=str(e), title=title, content=content, status_code=400)
+    tenant_id = user["tenant_id"]
+    conn = get_conn()
+    try:
+        with conn.cursor() as cur:
+            cur.execute("UPDATE board_posts SET title=%s, content=%s, updated_at=NOW() WHERE id=%s AND tenant_id=%s",
+                        (title, content, post_id, tenant_id))
+            removed_paths = []
+            if remove:
+                cur.execute("DELETE FROM board_images WHERE post_id=%s AND tenant_id=%s AND id = ANY(%s) RETURNING image_path",
+                            (post_id, tenant_id, list(remove)))
+                removed_paths = [r[0] for r in cur.fetchall()]
+            next_order = max([-1] + [i["order"] for i in post["images"]]) + 1
+            _save_board_photos(cur, tenant_id, post_id, processed, start=next_order)
+        conn.commit()
+    finally:
+        conn.close()
+    for path in removed_paths:
+        _remove_upload(tenant_id, path)
+    return RedirectResponse(url=f"{get_lang_prefix(lang)}/community/{post_id}", status_code=303)
+
+
+@app.post("/community/{post_id}/delete")
+async def community_delete(request: Request, post_id: int):
+    if not getattr(request.state, "tenant", None):
+        raise HTTPException(404)
+    user, post = _load_managed_post(request, post_id)
+    tenant_id = user["tenant_id"]
+    conn = get_conn()
+    try:
+        with conn.cursor() as cur:
+            cur.execute("DELETE FROM comments WHERE post_type='board' AND post_id=%s AND tenant_id=%s", (post_id, tenant_id))
+            cur.execute("DELETE FROM board_posts WHERE id=%s AND tenant_id=%s", (post_id, tenant_id))
+        conn.commit()
+    finally:
+        conn.close()
+    for img in post["images"]:
+        _remove_upload(tenant_id, img["path"])
+    return RedirectResponse(url="/community", status_code=303)
+
+
+@app.post("/community/{post_id}/comment")
+async def community_comment(request: Request, post_id: int, content: str = Form(""), lang: str = Form("ko")):
+    if not getattr(request.state, "tenant", None):
+        raise HTTPException(404)
+    user = _require_board_writer(request)
+    lp = get_lang_prefix("en" if lang == "en" else "ko")
+    content = content.strip()[:1000]
+    conn = get_conn()
+    try:
+        with conn.cursor() as cur:
+            cur.execute("SELECT 1 FROM board_posts WHERE id=%s AND tenant_id=%s", (post_id, user["tenant_id"]))
+            if not cur.fetchone():
+                raise HTTPException(404, "글을 찾을 수 없습니다.")
+            if content:
+                cur.execute(
+                    "INSERT INTO comments (tenant_id, post_type, post_id, user_id, content, created_at) VALUES (%s, 'board', %s, %s, %s, NOW())",
+                    (user["tenant_id"], post_id, user["id"], content),
+                )
+        conn.commit()
+    finally:
+        conn.close()
+    return RedirectResponse(url=f"{lp}/community/{post_id}#comments", status_code=303)
 
 
 # ─── Admin dashboard ─────────────────────────────────────────────────────────

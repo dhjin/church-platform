@@ -9,4 +9,5 @@ aiofiles
 pydantic
 elasticsearch>=8.0.0,<10.0.0
 anthropic>=1.0
+Pillow>=10.0
 httpx
