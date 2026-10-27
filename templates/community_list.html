@@ -1,0 +1,62 @@
+{% extends "_community_base.html" %}
+{% block content %}
+<div class="board-header">
+    <h2>{{ t.board_title }}</h2>
+    <p>{{ t.board_subtitle }}</p>
+</div>
+
+<div class="board-toolbar">
+    <form method="GET" action="{{ lp }}/community">
+        <input type="text" name="q" value="{{ q }}" placeholder="{{ t.pastoral_search_placeholder }}" aria-label="{{ t.pastoral_search_btn }}">
+        <button type="submit" class="btn-light">{{ t.pastoral_search_btn }}</button>
+    </form>
+    {% if can_write %}
+    <a class="btn-primary" href="/community/new{% if t.lang == 'en' %}?lang=en{% endif %}">&#9998; {{ t.board_write }}</a>
+    {% elif user %}
+    <span class="board-note">{{ t.board_pending }}</span>
+    {% else %}
+    <span class="board-note"><a href="{{ lp }}/login">{{ t.nav_login }}</a> &middot; {{ t.board_login_to_write }}</span>
+    {% endif %}
+</div>
+
+{% if q %}
+<p class="board-note" style="margin-bottom:1rem;">"{{ q }}" {{ t.pastoral_search_result }}: {{ total }} &nbsp;|&nbsp; <a href="{{ lp }}/community">{{ t.pastoral_all_list }}</a></p>
+{% endif %}
+
+{% if posts %}
+<div class="board-grid">
+    {% for post in posts %}
+    <a class="board-card" href="{{ lp }}/community/{{ post.id }}">
+        <div class="board-card-thumb">
+            {% if post.thumb %}
+            <img src="{{ post.thumb }}" alt="" loading="lazy">
+            {% if post.photo_count > 1 %}<span class="photo-badge">&#128247; {{ post.photo_count }}</span>{% endif %}
+            {% else %}
+            <div class="no-photo">{{ post.content | truncate(160, True, '...') }}</div>
+            {% endif %}
+        </div>
+        <div class="board-card-body">
+            <h4>{{ post.title }}</h4>
+            <div class="board-meta">
+                <span>{{ post.author or t.board_default_author }}</span>
+                <span>{{ post.created_at }}</span>
+                {% if post.comment_count %}<span>&#128172; {{ post.comment_count }}</span>{% endif %}
+            </div>
+        </div>
+    </a>
+    {% endfor %}
+</div>
+
+{% if total_pages > 1 %}
+<div class="pagination">
+    {% for p in range(1, total_pages + 1) %}
+        {% if p == page %}<span class="current">{{ p }}</span>
+        {% elif p <= 2 or p > total_pages - 2 or (p >= page - 1 and p <= page + 1) %}<a href="{{ lp }}/community?page={{ p }}{% if q %}&q={{ q | urlencode }}{% endif %}">{{ p }}</a>
+        {% elif p == 3 or p == total_pages - 2 %}<span>&hellip;</span>{% endif %}
+    {% endfor %}
+</div>
+{% endif %}
+{% else %}
+<div class="board-empty">{% if q %}"{{ q }}" {{ t.pastoral_no_result }}{% else %}{{ t.board_empty }}{% endif %}</div>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,114 @@
+{% extends "_community_base.html" %}
+{% block title %}{% if post %}{{ t.board_edit_title }}{% else %}{{ t.board_new_title }}{% endif %}{% endblock %}
+{% block content %}
+<div class="board-header"><h2>{% if post %}{{ t.board_edit_title }}{% else %}{{ t.board_new_title }}{% endif %}</h2></div>
+
+<form class="form-card" id="board-form" method="POST" enctype="multipart/form-data"
+      action="{% if post %}/community/{{ post.id }}/edit{% else %}/community/new{% endif %}"
+      data-max="{{ max_photos }}" data-existing="{{ post.images|length if post else 0 }}">
+    {% if error %}<div class="form-error" id="form-error">{{ error }}</div>{% else %}<div class="form-error" id="form-error" hidden></div>{% endif %}
+    <input type="hidden" name="lang" value="{{ t.lang }}">
+    <div class="form-row">
+        <label for="title">{{ t.board_form_title }}</label>
+        <input class="form-input" id="title" name="title" maxlength="120" required value="{{ title }}">
+    </div>
+    <div class="form-row">
+        <label for="content">{{ t.board_form_content }}</label>
+        <textarea id="content" name="content" rows="8" maxlength="5000">{{ content }}</textarea>
+    </div>
+    <div class="form-row">
+        <label>{{ t.board_form_photos }}</label>
+        {% if post and post.images %}
+        <div class="photo-previews" style="margin-bottom:10px;">
+            {% for img in post.images %}
+            <figure>
+                <img src="{{ img.path }}" alt="">
+                <label><input type="checkbox" name="remove_images" value="{{ img.id }}" onchange="this.closest('figure').classList.toggle('removing', this.checked)"> {{ t.board_remove_photo }}</label>
+            </figure>
+            {% endfor %}
+        </div>
+        {% endif %}
+        <label class="photo-pick">
+            &#128247; {{ t.board_form_photos }} +
+            <input type="file" name="photos" id="photos" accept="image/*" multiple>
+        </label>
+        <div class="photo-previews" id="new-previews"></div>
+        <p class="board-note" style="margin-top:6px;">{{ t.board_photo_hint }}</p>
+    </div>
+    <div class="form-buttons">
+        <a class="btn-light" href="{% if post %}{{ lp }}/community/{{ post.id }}{% else %}{{ lp }}/community{% endif %}">{{ t.board_cancel }}</a>
+        <button type="submit" class="btn-primary" id="submit-btn" data-busy="{{ t.board_uploading }}">{% if post %}{{ t.board_update }}{% else %}{{ t.board_save }}{% endif %}</button>
+    </div>
+</form>
+{% endblock %}
+{% block scripts %}
+<script>
+(function () {
+    var form = document.getElementById('board-form');
+    var input = document.getElementById('photos');
+    var previews = document.getElementById('new-previews');
+    var errBox = document.getElementById('form-error');
+    var max = parseInt(form.dataset.max, 10);
+    var tooMany = {{ t.board_err_too_many | tojson }};
+    var picked = [];
+
+    function showError(msg) { errBox.textContent = msg; errBox.hidden = false; errBox.scrollIntoView({block: 'center'}); }
+    function existingKept() {
+        return parseInt(form.dataset.existing, 10) - form.querySelectorAll('input[name=remove_images]:checked').length;
+    }
+    function render() {
+        previews.innerHTML = '';
+        picked.forEach(function (f, i) {
+            var fig = document.createElement('figure');
+            var img = document.createElement('img');
+            img.src = URL.createObjectURL(f);
+            var lab = document.createElement('label');
+            lab.textContent = '✕ {{ t.board_remove_photo }}';
+            lab.onclick = function () { picked.splice(i, 1); render(); };
+            fig.appendChild(img); fig.appendChild(lab); previews.appendChild(fig);
+        });
+    }
+    input.addEventListener('change', function () {
+        Array.prototype.forEach.call(input.files, function (f) { picked.push(f); });
+        input.value = '';
+        if (existingKept() + picked.length > max) { picked = picked.slice(0, Math.max(0, max - existingKept())); showError(tooMany); }
+        render();
+    });
+
+    // 휴대폰 원본 사진은 커서 올리기 전에 브라우저에서 줄인다(실패하면 원본 그대로).
+    function shrink(file) {
+        return new Promise(function (resolve) {
+            if (!/^image\/(jpeg|png|webp|heic|heif)$/i.test(file.type) || !window.createImageBitmap) return resolve(file);
+            createImageBitmap(file, {imageOrientation: 'from-image'}).then(function (bmp) {
+                var scale = Math.min(1, 1600 / Math.max(bmp.width, bmp.height));
+                var c = document.createElement('canvas');
+                c.width = Math.round(bmp.width * scale); c.height = Math.round(bmp.height * scale);
+                c.getContext('2d').drawImage(bmp, 0, 0, c.width, c.height);
+                c.toBlob(function (blob) {
+                    resolve(blob && blob.size < file.size ? new File([blob], (file.name || 'photo').replace(/\.\w+$/, '') + '.jpg', {type: 'image/jpeg'}) : file);
+                }, 'image/jpeg', 0.85);
+            }).catch(function () { resolve(file); });
+        });
+    }
+
+    form.addEventListener('submit', function (e) {
+        e.preventDefault();
+        if (existingKept() + picked.length > max) { showError(tooMany); return; }
+        var btn = document.getElementById('submit-btn');
+        btn.disabled = true; btn.textContent = btn.dataset.busy;
+        Promise.all(picked.map(shrink)).then(function (files) {
+            var fd = new FormData(form);
+            fd.delete('photos');
+            files.forEach(function (f) { fd.append('photos', f, f.name); });
+            return fetch(form.action, {method: 'POST', body: fd, credentials: 'same-origin'});
+        }).then(function (r) {
+            if (r.redirected) { location.href = r.url; return; }
+            return r.text().then(function (html) { document.open(); document.write(html); document.close(); });
+        }).catch(function () {
+            btn.disabled = false; btn.textContent = {{ (t.board_update if post else t.board_save) | tojson }};
+            showError({{ ('사진을 올리지 못했습니다. 다시 시도해 주세요.' if t.lang == 'ko' else 'Upload failed. Please try again.') | tojson }});
+        });
+    });
+})();
+</script>
+{% endblock %}

@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="{{ t.lang }}">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}{{ t.board_title }}{% endblock %} - {{ t.church_name }}</title>
+    <link rel="icon" href="/static/favicon.ico" type="image/x-icon">
+    <meta property="og:type" content="website">
+    <meta property="og:site_name" content="{{ t.church_name }}">
+    <meta property="og:title" content="{{ self.title() }} - {{ t.church_name }}">
+    <meta property="og:image" content="{% block og_image %}{{ site.og_image if site else "" }}{% endblock %}">
+    <meta property="og:url" content="{{ site.page_url if site else "" }}">
+    <link rel="stylesheet" href="/static/css/style.css?v=26">
+    {% include "_site_head.html" %}
+    <style>
+        .board-page { padding: 100px 0 60px; min-height: 70vh; }
+        .board-wrap { max-width: 900px; margin: 0 auto; }
+        .board-header { text-align: center; margin-bottom: 1.5rem; }
+        .board-header h2 { font-size: 2.2rem; color: var(--text-dark); margin-bottom: .5rem; }
+        .board-header p { color: var(--text-light); font-size: 1.05rem; }
+        .board-toolbar { display: flex; gap: 8px; align-items: center; margin-bottom: 1.25rem; flex-wrap: wrap; }
+        .board-toolbar form { display: flex; gap: 8px; flex: 1; min-width: 220px; }
+        .board-toolbar input { flex: 1; min-width: 0; padding: 10px 14px; border: 2px solid var(--border-color); border-radius: 8px; font-size: 1rem; }
+        .btn-primary, .btn-light, .btn-danger {
+            display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+            padding: 10px 18px; border-radius: 8px; font-size: 1rem; font-weight: 600;
+            text-decoration: none; cursor: pointer; border: 1px solid transparent; white-space: nowrap; font-family: inherit;
+        }
+        .btn-primary { background: var(--primary-color); color: #fff; }
+        .btn-primary:hover { background: var(--secondary-color, var(--primary-dark)); }
+        .btn-light { background: #fff; color: var(--text-dark); border-color: var(--border-color); }
+        .btn-danger { background: #fff; color: #c0392b; border-color: #f0c4bf; }
+        .board-note { color: var(--text-light); font-size: .92rem; }
+        .board-note a { color: var(--primary-color); font-weight: 600; }
+        .board-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 16px; }
+        .board-card { display: flex; flex-direction: column; background: #fff; border: 1px solid var(--border-color); border-radius: 12px; overflow: hidden; text-decoration: none; color: inherit; transition: box-shadow .2s, transform .2s; }
+        .board-card:hover { box-shadow: 0 6px 18px rgba(0,0,0,.08); transform: translateY(-2px); }
+        .board-card-thumb { position: relative; aspect-ratio: 4 / 3; background: var(--bg-light); display: flex; align-items: center; justify-content: center; }
+        .board-card-thumb img { width: 100%; height: 100%; object-fit: cover; }
+        .board-card-thumb .no-photo { padding: 1.25rem; color: var(--text-medium); font-size: .95rem; line-height: 1.6; display: -webkit-box; -webkit-line-clamp: 5; -webkit-box-orient: vertical; overflow: hidden; }
+        .photo-badge { position: absolute; right: 8px; bottom: 8px; background: rgba(0,0,0,.6); color: #fff; font-size: .8rem; padding: 2px 8px; border-radius: 999px; }
+        .board-card-body { padding: 12px 14px 14px; }
+        .board-card-body h4 { margin: 0 0 6px; font-size: 1.02rem; color: var(--text-dark); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .board-meta { font-size: .85rem; color: var(--text-light); display: flex; gap: 10px; flex-wrap: wrap; }
+        .board-empty { text-align: center; padding: 4rem 1rem; color: var(--text-light); font-size: 1.1rem; }
+        .pagination { display: flex; justify-content: center; gap: 8px; margin-top: 2rem; flex-wrap: wrap; }
+        .pagination a, .pagination span { min-width: 36px; height: 36px; padding: 0 10px; display: inline-flex; align-items: center; justify-content: center; border-radius: 8px; text-decoration: none; border: 1px solid var(--border-color); color: var(--text-dark); background: #fff; }
+        .pagination .current { background: var(--primary-color); color: #fff; border-color: var(--primary-color); font-weight: 700; }
+        /* detail */
+        .post-title { font-size: 1.8rem; color: var(--text-dark); margin: 0 0 .5rem; word-break: keep-all; overflow-wrap: anywhere; }
+        .post-head { border-bottom: 2px solid var(--border-color); padding-bottom: 1rem; margin-bottom: 1.5rem; }
+        .post-photos { display: grid; gap: 12px; margin-bottom: 1.5rem; }
+        .post-photos img { width: 100%; height: auto; border-radius: 10px; display: block; background: var(--bg-light); }
+        .post-content { font-size: 1.05rem; line-height: 1.8; color: var(--text-medium); white-space: pre-wrap; overflow-wrap: anywhere; margin-bottom: 2rem; }
+        .post-actions { display: flex; gap: 8px; flex-wrap: wrap; justify-content: space-between; align-items: center; }
+        .post-actions form { margin: 0; }
+        .comments { margin-top: 2.5rem; padding-top: 1.5rem; border-top: 2px solid var(--border-color); }
+        .comments h3 { font-size: 1.2rem; margin-bottom: 1rem; }
+        .comment-item { padding: .8rem 0; border-bottom: 1px solid #eee; }
+        .comment-header { display: flex; align-items: center; gap: .8rem; font-size: .9rem; margin-bottom: .3rem; }
+        .comment-author { font-weight: 600; color: var(--primary-color); }
+        .comment-date { color: var(--text-light); }
+        .comment-content { white-space: pre-wrap; overflow-wrap: anywhere; line-height: 1.6; }
+        .comment-delete-btn { background: none; border: none; color: #c0392b; cursor: pointer; font-size: .85rem; margin-left: auto; }
+        .comment-form { margin-top: 1rem; }
+        textarea, .form-input { width: 100%; box-sizing: border-box; padding: 12px; border: 2px solid var(--border-color); border-radius: 8px; font-size: 1rem; font-family: inherit; }
+        textarea { resize: vertical; }
+        textarea:focus, .form-input:focus { outline: none; border-color: var(--primary-color); }
+        /* form */
+        .form-card { background: #fff; border: 1px solid var(--border-color); border-radius: 12px; padding: 1.5rem; }
+        .form-row { margin-bottom: 1.2rem; }
+        .form-row label { display: block; font-weight: 600; margin-bottom: .4rem; color: var(--text-dark); }
+        .form-error { background: #fdecea; color: #a12b1f; padding: 10px 14px; border-radius: 8px; margin-bottom: 1rem; }
+        .photo-pick { display: block; border: 2px dashed var(--border-color); border-radius: 10px; padding: 1.2rem; text-align: center; cursor: pointer; color: var(--text-light); }
+        .photo-pick:hover { border-color: var(--primary-color); color: var(--primary-color); }
+        .photo-pick input { display: none; }
+        .photo-previews { display: grid; grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); gap: 8px; margin-top: 10px; }
+        .photo-previews figure { margin: 0; position: relative; aspect-ratio: 1; border-radius: 8px; overflow: hidden; background: var(--bg-light); }
+        .photo-previews img { width: 100%; height: 100%; object-fit: cover; }
+        .photo-previews label { position: absolute; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,.55); color: #fff; font-size: .8rem; padding: 3px 6px; display: flex; gap: 4px; align-items: center; cursor: pointer; }
+        .photo-previews figure.removing img { opacity: .3; }
+        .form-buttons { display: flex; gap: 8px; justify-content: flex-end; flex-wrap: wrap; }
+        @media (max-width: 768px) {
+            .board-header h2 { font-size: 1.6rem; }
+            .post-title { font-size: 1.4rem; }
+            .board-grid { grid-template-columns: repeat(2, 1fr); gap: 10px; }
+            .board-card-body { padding: 8px 10px 10px; }
+            .board-card-body h4 { font-size: .95rem; }
+            .board-meta { font-size: .78rem; gap: 6px; }
+            .board-card-thumb .no-photo { font-size: .85rem; padding: .8rem; -webkit-line-clamp: 4; }
+            .form-card { padding: 1rem; }
+        }
+    </style>
+</head>
+<body>
+    <header class="header">
+        <nav class="navbar">
+            <div class="container">
+                <div class="logo">
+                    <h1><a href="{{ lp }}/#home" style="color: inherit; text-decoration: none; display: flex; align-items: center; gap: 8px;">{% if site and site.logo_url %}<img src="{{ site.logo_url }}" alt="logo" style="height: 36px; width: 36px; object-fit: contain;">{% endif %} {{ t.church_name }}</a></h1>
+                </div>
+                <button class="mobile-menu-toggle" aria-label="menu">
+                    <span></span>
+                    <span></span>
+                    <span></span>
+                </button>
+                <ul class="nav-menu">
+                    <li><a href="{{ lp }}/#home">{{ t.nav_home }}</a></li>
+                    <li class="nav-item dropdown">
+                        <a href="{{ lp }}/about" class="dropbtn">{{ t.nav_about }}</a>
+                        <ul class="dropdown-menu">
+                            <li><a href="{{ lp }}/direction">{{ t.nav_direction }}</a></li>
+                            <li><a href="{{ lp }}/about">{{ t.nav_vision }}</a></li>
+                            <li><a href="{{ lp }}/#schedule-news">{{ t.nav_schedule }}</a></li>
+                            <li><a href="{{ lp }}/#contact">{{ t.nav_location }}</a></li>
+                            <li><a href="{{ lp }}/people">{{ t.nav_people }}</a></li>
+                        </ul>
+                    </li>
+                    <li class="nav-item dropdown">
+                        <a href="{{ lp }}/#videos" class="dropbtn">{{ t.nav_videos }}</a>
+                        <ul class="dropdown-menu">
+                            <li><a href="{{ lp }}/#videos?tab=vision">{{ t.nav_church_vision }}</a></li>
+                            <li><a href="{{ lp }}/#videos?tab=sermons">{{ t.nav_sermons }}</a></li>
+                            <li><a href="{{ lp }}/#videos?tab=shorts">{{ t.nav_shorts }}</a></li>
+                            <li><a href="{{ lp }}/#videos?tab=qty">{{ t.nav_qt }}</a></li>
+                        </ul>
+                    </li>
+                    <li><a href="{{ lp }}/pastoral">{{ t.nav_pastoral }}</a></li>
+                    <li><a href="{{ lp }}/community" class="active">{{ t.nav_community }}</a></li>
+                    <li><a href="{{ lp }}/#schedule-news">{{ t.nav_worship }}</a></li>
+                    <li><a href="{{ lp }}/#schedule-news">{{ t.nav_news }}</a></li>
+                    <li><a href="{{ lp }}/#contact">{{ t.nav_location }}</a></li>
+                    {% if user %}
+                    {% if user.role in ['owner', 'admin', 'manager'] %}
+                    <li><a href="/admin">{{ t.nav_admin }}</a></li>
+                    {% endif %}
+                    <li><a href="/logout">{{ t.nav_logout }}</a></li>
+                    {% else %}
+                    <li><a href="{{ lp }}/login" class="login-link">{{ t.nav_login }}</a></li>
+                    {% endif %}
+                    <li class="lang-switch"><a href="{% block lang_href %}{% if t.lang == 'ko' %}/en/community{% else %}/community{% endif %}{% endblock %}">{{ t.other_lang_name }}</a></li>
+                </ul>
+            </div>
+        </nav>
+    </header>
+
+    <section class="board-page">
+        <div class="container">
+            <div class="board-wrap">
+                {% block content %}{% endblock %}
+            </div>
+        </div>
+    </section>
+
+    <footer class="footer">
+        <div class="container">
+            <div class="footer-content">
+                <div class="footer-section">
+                    <h4>{{ t.church_name }}</h4>
+                    <p>{{ t.denomination }}</p>
+                    <p>{{ t.senior_pastor }}</p>
+                </div>
+                <div class="footer-section">
+                    <h4>{{ t.footer_address_label }}</h4>
+                    <p>{{ t.footer_address }}</p>
+                    <p>{{ t.footer_tel }}</p>
+                </div>
+            </div>
+            <div class="footer-bottom">
+                <p>{{ t.footer_copyright | safe }}</p>
+                <p>{{ t.footer_blessing }}</p>
+            </div>
+        </div>
+    </footer>
+
+    <script src="/static/js/script.js?v=15"></script>
+    {% block scripts %}{% endblock %}
+</body>
+</html>
